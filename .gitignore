@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.env
+venv/
+.venv/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# Data (raw large files — commit processed/sample only)
+data/raw/*.csv
+data/raw/*.xlsx
+data/raw/*.json
+data/raw/*.parquet
+!data/raw/.gitkeep
+
+# Reports output
+reports/output/
+!reports/output/.gitkeep
+
+# OS
+.DS_Store
+Thumbs.db
