@@ -48,6 +48,9 @@
     padding:7px 12px; border-radius:8px; font-size:13px; cursor:pointer;
   }
   select:focus{outline:none; border-color:var(--accent)}
+  .tfilters{display:flex; flex-wrap:wrap; gap:14px; align-items:center; margin:4px 0 14px}
+  .tfilters .group{gap:6px}
+  .tfilters select{padding:5px 10px; font-size:12px}
   .verdict{font-size:11px; padding:2px 8px; border-radius:999px; white-space:nowrap}
   .v-good{background:rgba(63,185,80,.15); color:var(--good); border:1px solid rgba(63,185,80,.35)}
   .v-warn{background:rgba(210,153,34,.15); color:var(--warn); border:1px solid rgba(210,153,34,.35)}
@@ -212,6 +215,31 @@
     <div class="panel full">
       <h2>Games <span id="tableCount" class="hint"></span></h2>
       <p class="hint">Click a column header to sort. Revenue is a rough estimate.</p>
+      <div class="tfilters">
+        <span class="group"><span class="label">Genre</span>
+          <select id="tfGenre"></select></span>
+        <span class="group"><span class="label">Min score</span>
+          <select id="tfScore">
+            <option value="0">Any</option>
+            <option value="60">&ge; 60%</option>
+            <option value="70">&ge; 70%</option>
+            <option value="80">&ge; 80%</option>
+            <option value="90">&ge; 90%</option>
+          </select></span>
+        <span class="group"><span class="label">Min reviews</span>
+          <select id="tfReviews">
+            <option value="0">Any</option>
+            <option value="100">&ge; 100</option>
+            <option value="1000">&ge; 1K</option>
+            <option value="10000">&ge; 10K</option>
+            <option value="100000">&ge; 100K</option>
+          </select></span>
+        <span class="group"><span class="label">Year</span>
+          <select id="tfYearFrom"></select>
+          <span class="label">–</span>
+          <select id="tfYearTo"></select></span>
+        <span class="chip" id="tfReset">Reset</span>
+      </div>
       <div class="tablewrap">
         <table id="table">
           <thead><tr>
@@ -249,7 +277,8 @@ const DATA = (window.DASHBOARD_DATA || {games:[], notes:{}});
 const ALL = DATA.games || [];
 
 // ---- state ----
-const state = {seg:'indie', price:'all', search:'', sortKey:'rev', sortDir:-1};
+const state = {seg:'indie', price:'all', search:'', sortKey:'rev', sortDir:-1,
+  tGenre:'all', tScoreMin:0, tReviewsMin:0, tYearFrom:'', tYearTo:''};
 let currentRows = [];  // games currently shown in the table (for the detail modal)
 
 // ---- helpers ----
@@ -279,6 +308,18 @@ function filtered(){
       const hay = (g.name+' '+(g.developer||'')).toLowerCase();
       if(!hay.includes(q)) return false;
     }
+    return true;
+  });
+}
+// Table-only filters, applied on top of the global filter above. These narrow
+// the Games table without touching the charts/KPIs (which use filtered()).
+function tableFilter(games){
+  return games.filter(g=>{
+    if(state.tGenre!=='all' && !(g.genres||[]).includes(state.tGenre)) return false;
+    if(state.tScoreMin && !(g.score!=null && g.score>=state.tScoreMin)) return false;
+    if(state.tReviewsMin && (g.reviews||0)<state.tReviewsMin) return false;
+    if(state.tYearFrom && (!g.year || g.year<state.tYearFrom)) return false;
+    if(state.tYearTo && (!g.year || g.year>state.tYearTo)) return false;
     return true;
   });
 }
@@ -547,7 +588,7 @@ function render(){
   const ga=genreAgg(games), ta=themeAgg(games), ya=yearAgg(games);
   renderKpis(games);
   renderMatrix(ga); renderGenreBar(ga); renderThemeBar(ta); renderYear(ya);
-  renderTable(games);
+  renderTable(tableFilter(games));
 }
 
 // ---- events ----
@@ -559,7 +600,32 @@ function setActive(attr,el){el.parentNode.querySelectorAll(`.chip[${attr}]`).for
 let st; document.getElementById('search').oninput=e=>{clearTimeout(st); st=setTimeout(()=>{state.search=e.target.value; render();},200);};
 document.querySelectorAll('#table th[data-sort]').forEach(th=>th.onclick=()=>{
   const k=th.dataset.sort; state.sortDir = state.sortKey===k? -state.sortDir : -1; state.sortKey=k;
-  renderTable(filtered());});
+  renderTable(tableFilter(filtered()));});
+
+// table-only filters: populate dropdowns from the data, then wire change events
+function initTableFilters(){
+  const genres=[...new Set(ALL.flatMap(g=>g.genres||[]))].sort();
+  document.getElementById('tfGenre').innerHTML =
+    `<option value="all">All genres</option>` +
+    genres.map(g=>`<option value="${esc(g)}">${esc(g)}</option>`).join('');
+  const years=[...new Set(ALL.map(g=>g.year).filter(Boolean))].sort();
+  const yOpts=years.map(y=>`<option value="${y}">${y}</option>`).join('');
+  document.getElementById('tfYearFrom').innerHTML=`<option value="">Earliest</option>`+yOpts;
+  document.getElementById('tfYearTo').innerHTML=`<option value="">Latest</option>`+yOpts;
+
+  const apply=()=>renderTable(tableFilter(filtered()));
+  const bind=(id,key,num)=>document.getElementById(id).onchange=e=>{
+    state[key]=num?+e.target.value:e.target.value; apply();};
+  bind('tfGenre','tGenre',false); bind('tfScore','tScoreMin',true);
+  bind('tfReviews','tReviewsMin',true);
+  bind('tfYearFrom','tYearFrom',false); bind('tfYearTo','tYearTo',false);
+  document.getElementById('tfReset').onclick=()=>{
+    Object.assign(state,{tGenre:'all',tScoreMin:0,tReviewsMin:0,tYearFrom:'',tYearTo:''});
+    ['tfGenre','tfScore','tfReviews','tfYearFrom','tfYearTo'].forEach(id=>{
+      const el=document.getElementById(id); el.value=el.options[0].value;});
+    apply();
+  };
+}
 
 // row click -> open concept modal (event delegation survives re-renders)
 document.querySelector('#table tbody').addEventListener('click', e=>{
@@ -576,6 +642,7 @@ document.getElementById('subtitle').textContent =
 document.getElementById('note').innerHTML =
   `⚠ <b>Read me:</b> ${DATA.notes?.revenue||''} ${DATA.notes?.bias||''}`;
 initCharts();
+initTableFilters();
 renderMomentum();
 renderForecast();
 render();
