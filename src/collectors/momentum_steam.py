@@ -6,18 +6,21 @@ one request yields years of retroactive time-series -- so we can measure which
 genres are heating up or cooling down RIGHT NOW without waiting weeks to
 accumulate our own snapshots.
 
-One request per app, so it's the slowest collector; run it in the background.
+One request per app, so it's the slowest collector. Fetches run concurrently
+across a thread pool (network-bound), while writes stay on the main thread
+(SQLite is single-writer); UPSERT keeps re-runs idempotent.
 
 Usage:
-    python -m src.collectors.momentum_steam            # all Steam listings
-    python -m src.collectors.momentum_steam --limit 10 # testing
+    python -m src.collectors.momentum_steam               # all, parallel
+    python -m src.collectors.momentum_steam --limit 10    # testing
+    python -m src.collectors.momentum_steam --workers 20  # more concurrency
 """
 from __future__ import annotations
 
 import argparse
 import sqlite3
 import sys
-import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 
 from src.collectors.base import (
@@ -67,8 +70,8 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Backfill Steam review momentum.")
     parser.add_argument("--limit", type=int, default=None,
                         help="Max listings (for testing)")
-    parser.add_argument("--delay", type=float, default=0.4,
-                        help="Seconds between requests (politeness)")
+    parser.add_argument("--workers", type=int, default=12,
+                        help="Concurrent histogram requests (network-bound)")
     args = parser.parse_args(argv)
 
     session = make_session()
@@ -81,21 +84,28 @@ def main(argv: list[str] | None = None) -> int:
     if args.limit:
         sql += f" LIMIT {int(args.limit)}"
     listings = conn.execute(sql, (pid,)).fetchall()
+    total = len(listings)
+
+    def fetch_one(row):
+        """Network only -- runs on a worker thread (no DB access here)."""
+        return row["listing_id"], fetch_histogram(session, int(row["external_id"]))
 
     done = 0
     try:
-        for row in listings:
-            appid = int(row["external_id"])
-            try:
-                rollups = fetch_histogram(session, appid)
-                store_history(conn, row["listing_id"], rollups)
-                conn.commit()
-                done += 1
-            except Exception as e:  # noqa: BLE001
-                print(f"  [warn] appid {appid}: {e}")
-            if done % 100 == 0 and done:
-                print(f"  {done}/{len(listings)} games done")
-            time.sleep(args.delay)
+        # Fan out fetches across workers; collect + write as each completes.
+        with ThreadPoolExecutor(max_workers=args.workers) as pool:
+            futures = {pool.submit(fetch_one, r): r for r in listings}
+            for fut in as_completed(futures):
+                row = futures[fut]
+                try:
+                    listing_id, rollups = fut.result()
+                    store_history(conn, listing_id, rollups)
+                    conn.commit()
+                    done += 1
+                except Exception as e:  # noqa: BLE001
+                    print(f"  [warn] appid {int(row['external_id'])}: {e}")
+                if done % 250 == 0 and done:
+                    print(f"  {done}/{total} games done", flush=True)
         finish_run(conn, run_id, "success", done)
     except Exception as e:  # noqa: BLE001
         finish_run(conn, run_id, "failed", done, notes=str(e))
@@ -104,7 +114,7 @@ def main(argv: list[str] | None = None) -> int:
     finally:
         conn.close()
 
-    print(f"Done. Review history backfilled for {done}/{len(listings)} games.")
+    print(f"Done. Review history backfilled for {done}/{total} games.")
     return 0
 
 
