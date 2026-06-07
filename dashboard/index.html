@@ -79,6 +79,10 @@
   td.num,th.num{text-align:right; font-variant-numeric:tabular-nums}
   .tag{display:inline-block; background:var(--chip); border:1px solid var(--border); border-radius:6px; padding:1px 6px; font-size:11px; color:var(--muted); margin-right:3px}
   .tablewrap{max-height:560px; overflow:auto; border-radius:8px}
+  #table tbody tr.spacer td{padding:0; border:0}
+  .gcell{display:flex; align-items:center; gap:9px}
+  .thumb{width:58px; height:27px; object-fit:cover; border-radius:4px; flex:none;
+    background:var(--chip); border:1px solid var(--border)}
   .pos{color:var(--good)} .neg{color:var(--bad)}
 
   .note{background:var(--panel-2); border:1px solid var(--border); border-left:3px solid var(--warn);
@@ -240,7 +244,7 @@
           <select id="tfYearTo"></select></span>
         <span class="chip" id="tfReset">Reset</span>
       </div>
-      <div class="tablewrap">
+      <div class="tablewrap" id="gamesWrap">
         <table id="table">
           <thead><tr>
             <th data-sort="name">Game</th>
@@ -531,7 +535,52 @@ function renderKpis(games){
     k.map(([key,v])=>`<div class="kpi"><div class="v">${v}</div><div class="k">${key}</div></div>`).join('');
 }
 
-// ---- table ----
+// ---- table (virtual-scrolled: only the rows in view are in the DOM, so the
+// whole universe — 10k+ games — stays browsable and smooth) ----
+const VBUF = 10;          // rows rendered above/below the viewport as a buffer
+let ROW_H = 35;           // row height (px); self-corrected from a real row
+let rowMeasured = false;
+let tableRows = [];       // current sorted+filtered rows backing the table
+
+function rowHtml(g, idx){
+  // Steam serves capsule art at a predictable URL keyed by appid — no need to
+  // store images; the browser pulls them from Steam's CDN. onerror hides the
+  // gap for delisted apps that have no capsule.
+  const img = g.appid
+    ? `<img class="thumb" loading="lazy" alt="" `
+      + `src="https://cdn.cloudflare.steamstatic.com/steam/apps/${g.appid}/capsule_sm_120.jpg" `
+      + `onerror="this.style.visibility='hidden'">`
+    : `<span class="thumb"></span>`;
+  return `<tr data-idx="${idx}">`
+    + `<td><div class="gcell">${img}<span>${esc(g.name)}${g.indie?' <span class="tag">indie</span>':''}</span></div></td>`
+    + `<td>${(g.genres||[]).slice(0,3).map(x=>`<span class="tag">${esc(x)}</span>`).join('')}</td>`
+    + `<td class="num">${g.year||'–'}</td>`
+    + `<td class="num">${g.price!=null?'$'+g.price:'–'}</td>`
+    + `<td class="num">${fmtNum(g.reviews)}</td>`
+    + `<td class="num ${g.score>=80?'pos':g.score<60?'neg':''}">${g.score!=null?g.score+'%':'–'}</td>`
+    + `<td class="num">${fmtMoney(g.rev)}</td>`
+    + `</tr>`;
+}
+function drawWindow(){
+  const wrap=document.getElementById('gamesWrap');
+  const tbody=document.querySelector('#table tbody');
+  const total=tableRows.length;
+  const start=Math.max(0, Math.floor(wrap.scrollTop/ROW_H)-VBUF);
+  const vis=Math.ceil(wrap.clientHeight/ROW_H)+VBUF*2;
+  const end=Math.min(total, start+vis);
+  const padTop=start*ROW_H, padBot=(total-end)*ROW_H;
+  let html = padTop?`<tr class="spacer"><td colspan="7" style="height:${padTop}px"></td></tr>`:'';
+  for(let i=start;i<end;i++) html+=rowHtml(tableRows[i], i);
+  if(padBot) html+=`<tr class="spacer"><td colspan="7" style="height:${padBot}px"></td></tr>`;
+  tbody.innerHTML=html;
+  // measure a real row once and re-draw if our estimate was off (keeps the
+  // spacer math exact regardless of styling/zoom)
+  if(!rowMeasured){
+    const r=tbody.querySelector('tr:not(.spacer)');
+    if(r){ rowMeasured=true; const h=r.offsetHeight;
+      if(h && Math.abs(h-ROW_H)>0.5){ ROW_H=h; drawWindow(); } }
+  }
+}
 function renderTable(games){
   const arr=[...games].sort((a,b)=>{
     let x=a[state.sortKey], y=b[state.sortKey];
@@ -540,18 +589,11 @@ function renderTable(games){
     if(typeof x==='string') return state.sortDir*x.localeCompare(y);
     return state.sortDir*(x-y);
   });
-  currentRows = arr;
+  currentRows = arr;          // absolute indices; data-idx maps straight into this
+  tableRows = arr;
   document.getElementById('tableCount').textContent=`(${games.length} shown · tap a game to read its concept)`;
-  document.querySelector('#table tbody').innerHTML = arr.map((g,i)=>`
-    <tr data-idx="${i}">
-      <td>${g.name}${g.indie?' <span class="tag">indie</span>':''}</td>
-      <td>${(g.genres||[]).slice(0,3).map(x=>`<span class="tag">${x}</span>`).join('')}</td>
-      <td class="num">${g.year||'–'}</td>
-      <td class="num">${g.price!=null?'$'+g.price:'–'}</td>
-      <td class="num">${fmtNum(g.reviews)}</td>
-      <td class="num ${g.score>=80?'pos':g.score<60?'neg':''}">${g.score!=null?g.score+'%':'–'}</td>
-      <td class="num">${fmtMoney(g.rev)}</td>
-    </tr>`).join('');
+  document.getElementById('gamesWrap').scrollTop=0;
+  drawWindow();
 }
 
 // ---- detail modal (read a game's concept) ----
@@ -625,6 +667,12 @@ function initTableFilters(){
       const el=document.getElementById(id); el.value=el.options[0].value;});
     apply();
   };
+
+  // re-render the visible window as the user scrolls the table (rAF-throttled)
+  const wrap=document.getElementById('gamesWrap');
+  let tick=false;
+  wrap.addEventListener('scroll',()=>{ if(!tick){ tick=true;
+    requestAnimationFrame(()=>{ drawWindow(); tick=false; }); }});
 }
 
 // row click -> open concept modal (event delegation survives re-renders)
