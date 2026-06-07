@@ -39,6 +39,17 @@ def get_json(session: requests.Session, url: str, params: dict | None = None,
     return resp.json()
 
 
+def parse_owners(owners: str | None) -> tuple[int | None, int | None]:
+    """SteamSpy owners string '1,000,000 .. 2,000,000' -> (1000000, 2000000)."""
+    if not owners or ".." not in owners:
+        return None, None
+    try:
+        lo, hi = owners.split("..")
+        return int(lo.replace(",", "").strip()), int(hi.replace(",", "").strip())
+    except (ValueError, AttributeError):
+        return None, None
+
+
 def platform_id(conn: sqlite3.Connection, code: str) -> int:
     row = conn.execute(
         "SELECT platform_id FROM platforms WHERE code = ?", (code,)

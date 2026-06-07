@@ -23,6 +23,7 @@ from src.collectors.base import (
     finish_run,
     get_json,
     make_session,
+    parse_owners,
     platform_id,
     start_run,
 )
@@ -93,17 +94,6 @@ def fetch_steamspy(session, appid: int) -> dict:
 # ---------------------------------------------------------------------------
 # Persistence
 # ---------------------------------------------------------------------------
-def _parse_owners(owners: str | None) -> tuple[int | None, int | None]:
-    """'1,000,000 .. 2,000,000' -> (1000000, 2000000)."""
-    if not owners or ".." not in owners:
-        return None, None
-    try:
-        lo, hi = owners.split("..")
-        return int(lo.replace(",", "").strip()), int(hi.replace(",", "").strip())
-    except (ValueError, AttributeError):
-        return None, None
-
-
 def upsert_game_and_listing(conn: sqlite3.Connection, appid: int,
                             details: dict, steamspy: dict) -> int:
     """Return listing_id, creating game + listing if new. Genres synced."""
@@ -176,7 +166,7 @@ def insert_snapshot(conn: sqlite3.Connection, listing_id: int, details: dict,
     positive = summary.get("total_positive")
     score_pct = (positive / total * 100) if total else None
 
-    owners_min, owners_max = _parse_owners(steamspy.get("owners"))
+    owners_min, owners_max = parse_owners(steamspy.get("owners"))
     ccu = steamspy.get("ccu")
 
     conn.execute(
