@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ZHOICE · Game Market Intelligence</title>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+<style>
+  :root{
+    --bg:#0d1117; --panel:#161b22; --panel-2:#1c2330; --border:#2a313c;
+    --text:#e6edf3; --muted:#8b949e; --accent:#58a6ff; --good:#3fb950;
+    --warn:#d29922; --bad:#f85149; --chip:#21262d;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  header{padding:20px 16px 8px; max-width:1200px; margin:0 auto}
+  h1{font-size:20px; margin:0 0 4px; letter-spacing:.2px}
+  .sub{color:var(--muted); font-size:13px}
+  .wrap{max-width:1200px; margin:0 auto; padding:0 16px 60px}
+
+  /* filter bar */
+  .filters{
+    position:sticky; top:0; z-index:10; background:rgba(13,17,23,.92);
+    backdrop-filter:blur(8px); padding:12px 16px; margin:8px 0 16px;
+    border-bottom:1px solid var(--border);
+    display:flex; flex-wrap:wrap; gap:8px; align-items:center;
+  }
+  .filters .group{display:flex; gap:6px; flex-wrap:wrap; align-items:center}
+  .label{color:var(--muted); font-size:12px; margin-right:2px}
+  .chip{
+    background:var(--chip); border:1px solid var(--border); color:var(--text);
+    padding:6px 12px; border-radius:999px; font-size:13px; cursor:pointer;
+    transition:.15s; user-select:none;
+  }
+  .chip:hover{border-color:var(--accent)}
+  .chip.active{background:var(--accent); border-color:var(--accent); color:#0d1117; font-weight:600}
+  input[type=search]{
+    background:var(--chip); border:1px solid var(--border); color:var(--text);
+    padding:7px 12px; border-radius:8px; font-size:13px; min-width:160px; flex:1;
+  }
+  input[type=search]:focus{outline:none; border-color:var(--accent)}
+
+  /* kpi cards */
+  .kpis{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin-bottom:18px}
+  .kpi{background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:14px 16px}
+  .kpi .v{font-size:22px; font-weight:700; letter-spacing:.3px}
+  .kpi .k{color:var(--muted); font-size:12px; margin-top:2px}
+
+  /* panels */
+  .grid{display:grid; grid-template-columns:1fr 1fr; gap:16px}
+  .panel{background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:16px; overflow:hidden}
+  .panel.full{grid-column:1 / -1}
+  .panel h2{font-size:14px; margin:0 0 2px; font-weight:600}
+  .panel .hint{color:var(--muted); font-size:12px; margin:0 0 12px}
+  .chart{width:100%; height:340px}
+  .chart.tall{height:420px}
+
+  /* table */
+  table{width:100%; border-collapse:collapse; font-size:13px}
+  th,td{text-align:left; padding:8px 10px; border-bottom:1px solid var(--border); white-space:nowrap}
+  th{color:var(--muted); font-weight:600; cursor:pointer; position:sticky; top:0; background:var(--panel)}
+  th:hover{color:var(--accent)}
+  td.num,th.num{text-align:right; font-variant-numeric:tabular-nums}
+  .tag{display:inline-block; background:var(--chip); border:1px solid var(--border); border-radius:6px; padding:1px 6px; font-size:11px; color:var(--muted); margin-right:3px}
+  .tablewrap{max-height:560px; overflow:auto; border-radius:8px}
+  .pos{color:var(--good)} .neg{color:var(--bad)}
+
+  .note{background:var(--panel-2); border:1px solid var(--border); border-left:3px solid var(--warn);
+        border-radius:8px; padding:10px 14px; font-size:12px; color:var(--muted); margin-bottom:16px}
+
+  @media(max-width:760px){
+    .grid{grid-template-columns:1fr}
+    .chart{height:300px}
+    h1{font-size:18px}
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>🎮 ZHOICE · Game Market Intelligence</h1>
+  <div class="sub" id="subtitle">Loading…</div>
+</header>
+
+<div class="filters">
+  <div class="group">
+    <span class="label">Segment</span>
+    <span class="chip" data-seg="all">All games</span>
+    <span class="chip active" data-seg="indie">Indie only</span>
+  </div>
+  <div class="group">
+    <span class="label">Price</span>
+    <span class="chip active" data-price="all">All</span>
+    <span class="chip" data-price="free">Free</span>
+    <span class="chip" data-price="lt10">&lt;$10</span>
+    <span class="chip" data-price="10to30">$10–30</span>
+    <span class="chip" data-price="gt30">&gt;$30</span>
+  </div>
+  <div class="group" style="flex:1">
+    <input type="search" id="search" placeholder="Search game / developer…" />
+  </div>
+</div>
+
+<div class="wrap">
+  <div class="note" id="note"></div>
+
+  <div class="kpis" id="kpis"></div>
+
+  <div class="grid">
+    <div class="panel full">
+      <h2>🎯 Opportunity Matrix — where's the gap?</h2>
+      <p class="hint">Each bubble = a genre. <b>Right</b> = crowded (many games). <b>Up</b> = higher median est. revenue. Bubble size = total market. <span style="color:var(--good)">Top-left = high reward, low competition = opportunity.</span></p>
+      <div id="matrix" class="chart tall"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Genres by game count</h2>
+      <p class="hint">How crowded each genre is (supply).</p>
+      <div id="genreBar" class="chart"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Themes / sub-genres</h2>
+      <p class="hint">Where micro-trends live (e.g. Survival, Horror).</p>
+      <div id="themeBar" class="chart"></div>
+    </div>
+
+    <div class="panel full">
+      <h2>Releases per year <span style="color:var(--warn)">⚠ biased</span></h2>
+      <p class="hint">Counts within this top-games universe — older games had more time to climb, so recent years look smaller than reality.</p>
+      <div id="yearLine" class="chart"></div>
+    </div>
+
+    <div class="panel full">
+      <h2>Games <span id="tableCount" class="hint"></span></h2>
+      <p class="hint">Click a column header to sort. Revenue is a rough estimate.</p>
+      <div class="tablewrap">
+        <table id="table">
+          <thead><tr>
+            <th data-sort="name">Game</th>
+            <th data-sort="genres">Genres</th>
+            <th data-sort="year" class="num">Year</th>
+            <th data-sort="price" class="num">Price</th>
+            <th data-sort="reviews" class="num">Reviews</th>
+            <th data-sort="score" class="num">Score</th>
+            <th data-sort="rev" class="num">Est. Revenue</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="data.js"></script>
+<script>
+const DATA = (window.DASHBOARD_DATA || {games:[], notes:{}});
+const ALL = DATA.games || [];
+
+// ---- state ----
+const state = {seg:'indie', price:'all', search:'', sortKey:'rev', sortDir:-1};
+
+// ---- helpers ----
+const median = a => { const v=a.filter(x=>x!=null).sort((p,q)=>p-q); if(!v.length) return 0;
+  const m=Math.floor(v.length/2); return v.length%2 ? v[m] : (v[m-1]+v[m])/2; };
+const mean = a => { const v=a.filter(x=>x!=null); return v.length? v.reduce((s,x)=>s+x,0)/v.length : 0; };
+const fmtMoney = n => { if(n>=1e9) return '$'+(n/1e9).toFixed(2)+'B'; if(n>=1e6) return '$'+(n/1e6).toFixed(1)+'M';
+  if(n>=1e3) return '$'+(n/1e3).toFixed(0)+'K'; return '$'+Math.round(n); };
+const fmtNum = n => n>=1e6? (n/1e6).toFixed(1)+'M' : n>=1e3? (n/1e3).toFixed(0)+'K' : String(n);
+
+function priceMatch(g){
+  const p = g.price;
+  switch(state.price){
+    case 'free': return p===0;
+    case 'lt10': return p!=null && p>0 && p<10;
+    case '10to30': return p!=null && p>=10 && p<=30;
+    case 'gt30': return p!=null && p>30;
+    default: return true;
+  }
+}
+function filtered(){
+  const q = state.search.trim().toLowerCase();
+  return ALL.filter(g=>{
+    if(state.seg==='indie' && !g.indie) return false;
+    if(!priceMatch(g)) return false;
+    if(q){
+      const hay = (g.name+' '+(g.developer||'')).toLowerCase();
+      if(!hay.includes(q)) return false;
+    }
+    return true;
+  });
+}
+
+// ---- aggregation ----
+function genreAgg(games){
+  const m = {};
+  games.forEach(g => (g.genres||[]).forEach(gen=>{
+    (m[gen] ||= {name:gen, rev:[], scores:[], prices:[], total:0});
+    const d=m[gen]; d.rev.push(g.rev); d.total+=g.rev;
+    if(g.score!=null) d.scores.push(g.score); if(g.price!=null) d.prices.push(g.price);
+  }));
+  return Object.values(m).map(d=>({
+    name:d.name, games:d.rev.length, medRev:median(d.rev), total:d.total,
+    avgScore:d.scores.length? mean(d.scores):null, medPrice:median(d.prices)
+  })).filter(d=>d.games>=3); // ignore ultra-thin genres
+}
+function themeAgg(games){
+  const m={}; games.forEach(g=>(g.themes||[]).forEach(t=>m[t]=(m[t]||0)+1));
+  return Object.entries(m).map(([name,games])=>({name,games}))
+    .sort((a,b)=>b.games-a.games).slice(0,15);
+}
+function yearAgg(games){
+  const m={}; games.forEach(g=>{ if(g.year) m[g.year]=(m[g.year]||0)+1; });
+  return Object.entries(m).map(([year,games])=>({year,games})).sort((a,b)=>a.year.localeCompare(b.year));
+}
+
+// ---- charts ----
+const AX=()=>({axisLine:{lineStyle:{color:'#2a313c'}},axisLabel:{color:'#8b949e'},splitLine:{lineStyle:{color:'#1c2330'}}});
+let cMatrix,cGenre,cTheme,cYear;
+function initCharts(){
+  cMatrix=echarts.init(document.getElementById('matrix'));
+  cGenre=echarts.init(document.getElementById('genreBar'));
+  cTheme=echarts.init(document.getElementById('themeBar'));
+  cYear=echarts.init(document.getElementById('yearLine'));
+  window.addEventListener('resize',()=>{[cMatrix,cGenre,cTheme,cYear].forEach(c=>c.resize());});
+}
+
+function renderMatrix(ga){
+  const xs=ga.map(d=>d.games), ys=ga.map(d=>d.medRev);
+  const mx=median(xs), my=median(ys), maxT=Math.max(...ga.map(d=>d.total),1);
+  cMatrix.setOption({
+    grid:{left:60,right:24,top:20,bottom:50},
+    tooltip:{trigger:'item',backgroundColor:'#161b22',borderColor:'#2a313c',textStyle:{color:'#e6edf3'},
+      formatter:p=>{const d=p.data.d; return `<b>${d.name}</b><br>Games: ${d.games}<br>Median rev: ${fmtMoney(d.medRev)}<br>Total: ${fmtMoney(d.total)}<br>Avg score: ${d.avgScore?d.avgScore+'%':'–'}`;}},
+    xAxis:{name:'# games (competition →)',nameLocation:'middle',nameGap:30,nameTextStyle:{color:'#8b949e'},...AX()},
+    yAxis:{name:'median est. revenue →',nameLocation:'middle',nameGap:46,nameTextStyle:{color:'#8b949e'},
+      axisLabel:{color:'#8b949e',formatter:v=>fmtMoney(v)},axisLine:{lineStyle:{color:'#2a313c'}},splitLine:{lineStyle:{color:'#1c2330'}}},
+    series:[{
+      type:'scatter',
+      symbolSize:d=>8+38*Math.sqrt(d.d.total/maxT),
+      itemStyle:{color:p=>{const d=p.data.d; return (d.games<=mx && d.medRev>=my)?'#3fb950':'#58a6ff';},opacity:.8,borderColor:'#0d1117'},
+      label:{show:true,formatter:p=>p.data.d.name,position:'top',color:'#8b949e',fontSize:10},
+      markLine:{silent:true,symbol:'none',lineStyle:{color:'#3a414d',type:'dashed'},
+        data:[{xAxis:mx},{yAxis:my}]},
+      data:ga.map(d=>({value:[d.games,d.medRev],d}))
+    }]
+  });
+}
+function renderGenreBar(ga){
+  const top=[...ga].sort((a,b)=>b.games-a.games).slice(0,14).reverse();
+  cGenre.setOption({
+    grid:{left:8,right:40,top:10,bottom:24,containLabel:true},
+    tooltip:{trigger:'axis',axisPointer:{type:'shadow'},backgroundColor:'#161b22',borderColor:'#2a313c',textStyle:{color:'#e6edf3'},
+      formatter:p=>{const d=top[p[0].dataIndex]; return `<b>${d.name}</b><br>${d.games} games<br>Avg score ${d.avgScore?d.avgScore+'%':'–'}`;}},
+    xAxis:{type:'value',...AX()},
+    yAxis:{type:'category',data:top.map(d=>d.name),axisLabel:{color:'#e6edf3',fontSize:11},axisLine:{lineStyle:{color:'#2a313c'}}},
+    series:[{type:'bar',data:top.map(d=>d.games),itemStyle:{color:'#58a6ff',borderRadius:[0,4,4,0]},barWidth:'62%'}]
+  });
+}
+function renderThemeBar(ta){
+  const top=[...ta].reverse();
+  cTheme.setOption({
+    grid:{left:8,right:40,top:10,bottom:24,containLabel:true},
+    tooltip:{trigger:'axis',axisPointer:{type:'shadow'},backgroundColor:'#161b22',borderColor:'#2a313c',textStyle:{color:'#e6edf3'}},
+    xAxis:{type:'value',...AX()},
+    yAxis:{type:'category',data:top.map(d=>d.name),axisLabel:{color:'#e6edf3',fontSize:11},axisLine:{lineStyle:{color:'#2a313c'}}},
+    series:[{type:'bar',data:top.map(d=>d.games),itemStyle:{color:'#bc8cff',borderRadius:[0,4,4,0]},barWidth:'62%'}]
+  });
+}
+function renderYear(ya){
+  cYear.setOption({
+    grid:{left:40,right:24,top:16,bottom:30},
+    tooltip:{trigger:'axis',backgroundColor:'#161b22',borderColor:'#2a313c',textStyle:{color:'#e6edf3'}},
+    xAxis:{type:'category',data:ya.map(d=>d.year),...AX()},
+    yAxis:{type:'value',...AX()},
+    series:[{type:'line',smooth:true,data:ya.map(d=>d.games),symbolSize:6,
+      lineStyle:{color:'#3fb950',width:2},itemStyle:{color:'#3fb950'},
+      areaStyle:{color:new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'rgba(63,185,80,.35)'},{offset:1,color:'rgba(63,185,80,0)'}])}}]
+  });
+}
+
+// ---- KPIs ----
+function renderKpis(games){
+  const priced=games.map(g=>g.price).filter(p=>p);
+  const k=[
+    ['Games', fmtNum(games.length)],
+    ['Indie share', games.length? Math.round(100*games.filter(g=>g.indie).length/games.length)+'%':'–'],
+    ['Median price', priced.length? '$'+median(priced).toFixed(2):'–'],
+    ['Median reviews', fmtNum(Math.round(median(games.map(g=>g.reviews))))],
+    ['Total est. revenue', fmtMoney(games.reduce((s,g)=>s+g.rev,0))],
+  ];
+  document.getElementById('kpis').innerHTML =
+    k.map(([key,v])=>`<div class="kpi"><div class="v">${v}</div><div class="k">${key}</div></div>`).join('');
+}
+
+// ---- table ----
+function renderTable(games){
+  const arr=[...games].sort((a,b)=>{
+    let x=a[state.sortKey], y=b[state.sortKey];
+    if(state.sortKey==='genres'){x=(a.genres||[]).join();y=(b.genres||[]).join();}
+    if(x==null)x=-Infinity; if(y==null)y=-Infinity;
+    if(typeof x==='string') return state.sortDir*x.localeCompare(y);
+    return state.sortDir*(x-y);
+  }).slice(0,150);
+  document.getElementById('tableCount').textContent=`(${games.length} shown, top 150 listed)`;
+  document.querySelector('#table tbody').innerHTML = arr.map(g=>`
+    <tr>
+      <td>${g.name}${g.indie?' <span class="tag">indie</span>':''}</td>
+      <td>${(g.genres||[]).slice(0,3).map(x=>`<span class="tag">${x}</span>`).join('')}</td>
+      <td class="num">${g.year||'–'}</td>
+      <td class="num">${g.price!=null?'$'+g.price:'–'}</td>
+      <td class="num">${fmtNum(g.reviews)}</td>
+      <td class="num ${g.score>=80?'pos':g.score<60?'neg':''}">${g.score!=null?g.score+'%':'–'}</td>
+      <td class="num">${fmtMoney(g.rev)}</td>
+    </tr>`).join('');
+}
+
+// ---- orchestrate ----
+function render(){
+  const games=filtered();
+  const ga=genreAgg(games), ta=themeAgg(games), ya=yearAgg(games);
+  renderKpis(games);
+  renderMatrix(ga); renderGenreBar(ga); renderThemeBar(ta); renderYear(ya);
+  renderTable(games);
+}
+
+// ---- events ----
+document.querySelectorAll('.chip[data-seg]').forEach(c=>c.onclick=()=>{
+  state.seg=c.dataset.seg; setActive('data-seg',c); render();});
+document.querySelectorAll('.chip[data-price]').forEach(c=>c.onclick=()=>{
+  state.price=c.dataset.price; setActive('data-price',c); render();});
+function setActive(attr,el){el.parentNode.querySelectorAll(`.chip[${attr}]`).forEach(x=>x.classList.remove('active')); el.classList.add('active');}
+let st; document.getElementById('search').oninput=e=>{clearTimeout(st); st=setTimeout(()=>{state.search=e.target.value; render();},200);};
+document.querySelectorAll('#table th[data-sort]').forEach(th=>th.onclick=()=>{
+  const k=th.dataset.sort; state.sortDir = state.sortKey===k? -state.sortDir : -1; state.sortKey=k;
+  renderTable(filtered());});
+
+// ---- boot ----
+document.getElementById('subtitle').textContent =
+  `${ALL.length} games · generated ${DATA.generated_at||'—'} · data: Steam + SteamSpy + IGDB`;
+document.getElementById('note').innerHTML =
+  `⚠ <b>Read me:</b> ${DATA.notes?.revenue||''} ${DATA.notes?.bias||''}`;
+initCharts();
+render();
+</script>
+</body>
+</html>
