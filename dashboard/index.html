@@ -51,6 +51,21 @@
   .tfilters{display:flex; flex-wrap:wrap; gap:14px; align-items:center; margin:4px 0 14px}
   .tfilters .group{gap:6px}
   .tfilters select{padding:5px 10px; font-size:12px}
+  .dropdown{position:relative; display:inline-block}
+  .ddbtn{background:var(--chip); border:1px solid var(--border); color:var(--text);
+    padding:5px 10px; border-radius:8px; font-size:12px; cursor:pointer}
+  .ddbtn:hover{border-color:var(--accent)}
+  .ddpanel{display:none; position:absolute; top:calc(100% + 4px); left:0; z-index:20;
+    background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:10px;
+    min-width:210px; box-shadow:0 8px 24px rgba(0,0,0,.45)}
+  .ddpanel.show{display:block}
+  .ddmode{display:flex; align-items:center; gap:6px; margin-bottom:8px}
+  .ddmode .chip{padding:3px 10px; font-size:12px}
+  .ddlist{max-height:240px; overflow:auto; display:flex; flex-direction:column; gap:1px}
+  .ddlist label{display:flex; align-items:center; gap:8px; font-size:13px; padding:4px 6px;
+    border-radius:6px; cursor:pointer}
+  .ddlist label:hover{background:var(--panel-2)}
+  .ddfoot{margin-top:8px; display:flex; justify-content:flex-end}
   .verdict{font-size:11px; padding:2px 8px; border-radius:999px; white-space:nowrap}
   .v-good{background:rgba(63,185,80,.15); color:var(--good); border:1px solid rgba(63,185,80,.35)}
   .v-warn{background:rgba(210,153,34,.15); color:var(--warn); border:1px solid rgba(210,153,34,.35)}
@@ -220,8 +235,17 @@
       <h2>Games <span id="tableCount" class="hint"></span></h2>
       <p class="hint">Click a column header to sort. Revenue is a rough estimate.</p>
       <div class="tfilters">
-        <span class="group"><span class="label">Genre</span>
-          <select id="tfGenre"></select></span>
+        <span class="group" id="genreFilter"><span class="label">Genre</span>
+          <span class="dropdown">
+            <button type="button" class="ddbtn" id="tfGenreBtn">All genres ▾</button>
+            <div class="ddpanel" id="tfGenrePanel">
+              <div class="ddmode"><span class="label">Match</span>
+                <span class="chip mode active" data-mode="any">Any</span>
+                <span class="chip mode" data-mode="all">All</span></div>
+              <div class="ddlist" id="tfGenreList"></div>
+              <div class="ddfoot"><span class="chip" id="tfGenreClear">Clear</span></div>
+            </div>
+          </span></span>
         <span class="group"><span class="label">Min score</span>
           <select id="tfScore">
             <option value="0">Any</option>
@@ -282,7 +306,7 @@ const ALL = DATA.games || [];
 
 // ---- state ----
 const state = {seg:'indie', price:'all', search:'', sortKey:'rev', sortDir:-1,
-  tGenre:'all', tScoreMin:0, tReviewsMin:0, tYearFrom:'', tYearTo:''};
+  tGenres:[], tGenreMode:'any', tScoreMin:0, tReviewsMin:0, tYearFrom:'', tYearTo:''};
 let currentRows = [];  // games currently shown in the table (for the detail modal)
 
 // ---- helpers ----
@@ -319,7 +343,13 @@ function filtered(){
 // the Games table without touching the charts/KPIs (which use filtered()).
 function tableFilter(games){
   return games.filter(g=>{
-    if(state.tGenre!=='all' && !(g.genres||[]).includes(state.tGenre)) return false;
+    if(state.tGenres.length){
+      const gg=g.genres||[];
+      const ok = state.tGenreMode==='all'
+        ? state.tGenres.every(x=>gg.includes(x))   // must have every selected genre
+        : state.tGenres.some(x=>gg.includes(x));    // in any selected genre
+      if(!ok) return false;
+    }
     if(state.tScoreMin && !(g.score!=null && g.score>=state.tScoreMin)) return false;
     if(state.tReviewsMin && (g.reviews||0)<state.tReviewsMin) return false;
     if(state.tYearFrom && (!g.year || g.year<state.tYearFrom)) return false;
@@ -646,25 +676,48 @@ document.querySelectorAll('#table th[data-sort]').forEach(th=>th.onclick=()=>{
 
 // table-only filters: populate dropdowns from the data, then wire change events
 function initTableFilters(){
+  const apply=()=>renderTable(tableFilter(filtered()));
+
+  // --- multi-select genre dropdown ---
   const genres=[...new Set(ALL.flatMap(g=>g.genres||[]))].sort();
-  document.getElementById('tfGenre').innerHTML =
-    `<option value="all">All genres</option>` +
-    genres.map(g=>`<option value="${esc(g)}">${esc(g)}</option>`).join('');
+  document.getElementById('tfGenreList').innerHTML = genres.map(g=>
+    `<label><input type="checkbox" value="${esc(g)}">${esc(g)}</label>`).join('');
+  const genreBtn=document.getElementById('tfGenreBtn');
+  const updateGenreBtn=()=>{ const n=state.tGenres.length;
+    genreBtn.textContent=(n? `${n} genre${n>1?'s':''}` : 'All genres')+' ▾'; };
+  genreBtn.onclick=e=>{ e.stopPropagation();
+    document.getElementById('tfGenrePanel').classList.toggle('show'); };
+  document.addEventListener('click', e=>{
+    if(!document.getElementById('genreFilter').contains(e.target))
+      document.getElementById('tfGenrePanel').classList.remove('show'); });
+  document.getElementById('tfGenreList').addEventListener('change', e=>{
+    if(e.target.type!=='checkbox') return;
+    state.tGenres=[...document.querySelectorAll('#tfGenreList input:checked')].map(i=>i.value);
+    updateGenreBtn(); apply(); });
+  document.querySelectorAll('#tfGenrePanel .chip.mode').forEach(c=>c.onclick=()=>{
+    state.tGenreMode=c.dataset.mode;
+    document.querySelectorAll('#tfGenrePanel .chip.mode').forEach(x=>x.classList.toggle('active',x===c));
+    if(state.tGenres.length) apply(); });
+  const clearGenres=()=>{ state.tGenres=[];
+    document.querySelectorAll('#tfGenreList input:checked').forEach(i=>i.checked=false);
+    updateGenreBtn(); };
+  document.getElementById('tfGenreClear').onclick=()=>{ clearGenres(); apply(); };
+
+  // --- year range + numeric selects ---
   const years=[...new Set(ALL.map(g=>g.year).filter(Boolean))].sort();
   const yOpts=years.map(y=>`<option value="${y}">${y}</option>`).join('');
   document.getElementById('tfYearFrom').innerHTML=`<option value="">Earliest</option>`+yOpts;
   document.getElementById('tfYearTo').innerHTML=`<option value="">Latest</option>`+yOpts;
-
-  const apply=()=>renderTable(tableFilter(filtered()));
   const bind=(id,key,num)=>document.getElementById(id).onchange=e=>{
     state[key]=num?+e.target.value:e.target.value; apply();};
-  bind('tfGenre','tGenre',false); bind('tfScore','tScoreMin',true);
-  bind('tfReviews','tReviewsMin',true);
+  bind('tfScore','tScoreMin',true); bind('tfReviews','tReviewsMin',true);
   bind('tfYearFrom','tYearFrom',false); bind('tfYearTo','tYearTo',false);
+
   document.getElementById('tfReset').onclick=()=>{
-    Object.assign(state,{tGenre:'all',tScoreMin:0,tReviewsMin:0,tYearFrom:'',tYearTo:''});
-    ['tfGenre','tfScore','tfReviews','tfYearFrom','tfYearTo'].forEach(id=>{
+    Object.assign(state,{tScoreMin:0,tReviewsMin:0,tYearFrom:'',tYearTo:''});
+    ['tfScore','tfReviews','tfYearFrom','tfYearTo'].forEach(id=>{
       const el=document.getElementById(id); el.value=el.options[0].value;});
+    clearGenres();
     apply();
   };
 
