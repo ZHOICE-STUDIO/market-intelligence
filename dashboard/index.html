@@ -539,9 +539,9 @@ function renderTable(games){
     if(x==null)x=-Infinity; if(y==null)y=-Infinity;
     if(typeof x==='string') return state.sortDir*x.localeCompare(y);
     return state.sortDir*(x-y);
-  }).slice(0,150);
+  });
   currentRows = arr;
-  document.getElementById('tableCount').textContent=`(${games.length} shown, top 150 listed · tap a game to read its concept)`;
+  document.getElementById('tableCount').textContent=`(${games.length} shown · tap a game to read its concept)`;
   document.querySelector('#table tbody').innerHTML = arr.map((g,i)=>`
     <tr data-idx="${i}">
       <td>${g.name}${g.indie?' <span class="tag">indie</span>':''}</td>
