@@ -43,6 +43,15 @@
     padding:7px 12px; border-radius:8px; font-size:13px; min-width:160px; flex:1;
   }
   input[type=search]:focus{outline:none; border-color:var(--accent)}
+  select{
+    background:var(--chip); border:1px solid var(--border); color:var(--text);
+    padding:7px 12px; border-radius:8px; font-size:13px; cursor:pointer;
+  }
+  select:focus{outline:none; border-color:var(--accent)}
+  .verdict{font-size:11px; padding:2px 8px; border-radius:999px; white-space:nowrap}
+  .v-good{background:rgba(63,185,80,.15); color:var(--good); border:1px solid rgba(63,185,80,.35)}
+  .v-warn{background:rgba(210,153,34,.15); color:var(--warn); border:1px solid rgba(210,153,34,.35)}
+  .v-bad{background:rgba(248,81,73,.12); color:var(--bad); border:1px solid rgba(248,81,73,.3)}
 
   /* kpi cards */
   .kpis{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin-bottom:18px}
@@ -145,6 +154,35 @@
       <h2>🔥 Hot vs Cooling genres — what's rising right now</h2>
       <p class="hint" id="momoHint">Change in monthly review volume: <span style="color:var(--good)">green = heating up</span>, <span style="color:var(--bad)">red = cooling down</span>. Market-wide (not filtered).</p>
       <div id="momoBar" class="chart"></div>
+    </div>
+
+    <div class="panel full" id="buildPanel">
+      <h2>🚀 What to build now — ride a trend that's still rising at launch</h2>
+      <p class="hint" id="buildHint">Genres ranked by <b>projected change by ship date</b>. We model each genre's monthly review volume and project ~12 months out (a focused dev cycle), so you start something that's still climbing when it launches — not chasing a peak that's already passed. <span style="color:var(--good)">🟢 = rising &amp; still a big market</span>, <span style="color:var(--warn)">🟡 = rising but niche</span>, <span style="color:var(--bad)">🔴 = cooling</span>. Market-wide.</p>
+      <div class="tablewrap" style="max-height:none">
+        <table id="fcTable">
+          <thead><tr>
+            <th>Genre</th>
+            <th class="num">Now (rev/mo)</th>
+            <th class="num">Proj. +12mo</th>
+            <th class="num">Projected Δ</th>
+            <th class="num">YoY so far</th>
+            <th class="num">Competition</th>
+            <th>Verdict</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="panel full" id="forecastPanel">
+      <h2>📈 Genre trend &amp; 12-month forecast — past · present · projected</h2>
+      <p class="hint" id="forecastHint">Solid = actual monthly review volume (history). <span style="color:var(--warn)">Dashed = forecast</span>, shaded = ~80% range. Pick a genre to see whether its wave is rising or breaking.</p>
+      <div class="group" style="margin-bottom:10px">
+        <span class="label">Genre</span>
+        <select id="fcSelect"></select>
+      </div>
+      <div id="forecastLine" class="chart tall"></div>
     </div>
 
     <div class="panel full" id="marketPanel">
@@ -276,7 +314,7 @@ function initCharts(){
   cGenre=echarts.init(document.getElementById('genreBar'));
   cTheme=echarts.init(document.getElementById('themeBar'));
   cYear=echarts.init(document.getElementById('yearLine'));
-  window.addEventListener('resize',()=>{[cMatrix,cGenre,cTheme,cYear,cMomo,cMarket].forEach(c=>c&&c.resize());});
+  window.addEventListener('resize',()=>{[cMatrix,cGenre,cTheme,cYear,cMomo,cMarket,cForecast].forEach(c=>c&&c.resize());});
 }
 
 function renderMatrix(ga){
@@ -333,8 +371,8 @@ function renderYear(ya){
   });
 }
 
-// ---- momentum (static, market-wide) ----
-let cMomo, cMarket;
+// ---- momentum + forecast (static, market-wide) ----
+let cMomo, cMarket, cForecast;
 function renderMomentum(){
   const mo = DATA.momentum;
   if(!mo || !mo.available){ document.getElementById('momoPanel').style.display='none';
@@ -371,6 +409,70 @@ function renderMomentum(){
     series:[{type:'line',smooth:true,data:mo.market.map(d=>d.reviews),symbolSize:5,
       lineStyle:{color:'#58a6ff',width:2},itemStyle:{color:'#58a6ff'},
       areaStyle:{color:new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'rgba(88,166,255,.30)'},{offset:1,color:'rgba(88,166,255,0)'}])}}]
+  });
+}
+
+// ---- forecast: per-genre trend + projection, and the "build now" ranking ----
+function verdict(g){
+  if(g.catchable) return ['🟢 Rising — good window','v-good'];
+  if(g.rising && (g.change_pct||0)>0) return ['🟡 Rising but niche','v-warn'];
+  return ['🔴 Cooling','v-bad'];
+}
+function renderForecast(){
+  const fc = DATA.forecast;
+  if(!fc || !fc.available){ ['forecastPanel','buildPanel'].forEach(id=>{const e=document.getElementById(id); if(e)e.style.display='none';}); return; }
+  document.getElementById('forecastHint').innerHTML += ` <b>As of ${fc.as_of}</b>, projecting ${fc.horizon} months ahead.`;
+
+  // ranking table — answers "what to build"
+  const sign = v => v==null?'–':(v>0?'+':'')+v+'%';
+  document.querySelector('#fcTable tbody').innerHTML = fc.genres.map(g=>{
+    const [vtext,vcls]=verdict(g);
+    return `<tr>
+      <td>${g.name}</td>
+      <td class="num">${fmtNum(g.now)}</td>
+      <td class="num">${fmtNum(g.proj)}</td>
+      <td class="num ${g.change_pct>0?'pos':g.change_pct<0?'neg':''}">${sign(g.change_pct)}</td>
+      <td class="num ${g.yoy_pct>0?'pos':g.yoy_pct<0?'neg':''}">${sign(g.yoy_pct)}</td>
+      <td class="num">${g.competition}</td>
+      <td><span class="verdict ${vcls}">${vtext}</span></td>
+    </tr>`;}).join('');
+
+  // genre selector for the trend+forecast line; default = top-ranked catchable
+  const sel = document.getElementById('fcSelect');
+  sel.innerHTML = fc.genres.map((g,i)=>`<option value="${i}">${g.name}${g.catchable?' 🟢':''}</option>`).join('');
+  const firstCatch = fc.genres.findIndex(g=>g.catchable);
+  sel.value = firstCatch>=0 ? firstCatch : 0;
+  cForecast = cForecast || echarts.init(document.getElementById('forecastLine'));
+  const draw = ()=>drawForecastLine(fc.genres[+sel.value]);
+  sel.onchange = draw; draw();
+}
+function drawForecastLine(g){
+  const xAll=[...g.months, ...g.fc_months];
+  const nH=g.months.length, last=g.history[nH-1];
+  const histSeries=[...g.history, ...g.fc_months.map(()=>null)];
+  // connect forecast to the last actual point, then project
+  const fcSeries=g.months.map((_,i)=> i===nH-1? last : null).concat(g.forecast);
+  // shaded ~80% band, anchored at the junction so it grows out of the last actual
+  const lowerBase=g.months.map((_,i)=> i===nH-1? last : null).concat(g.lower);
+  const delta    =g.months.map((_,i)=> i===nH-1? 0    : null).concat(g.upper.map((u,i)=>u-g.lower[i]));
+  cForecast.setOption({
+    grid:{left:56,right:24,top:30,bottom:40},
+    legend:{data:['History','Forecast'],textStyle:{color:'#8b949e'},top:0,right:8},
+    tooltip:{trigger:'axis',backgroundColor:'#161b22',borderColor:'#2a313c',textStyle:{color:'#e6edf3'},
+      formatter:p=>{const i=p[0].dataIndex,fut=i>=nH; const v=p.find(s=>s.seriesName==='History'&&s.value!=null)||p.find(s=>s.seriesName==='Forecast'&&s.value!=null);
+        return `${xAll[i]}${fut?' · projected':''}<br>${v?fmtNum(v.value):'–'} reviews/mo`;}},
+    xAxis:{type:'category',data:xAll,boundaryGap:false,axisLabel:{color:'#8b949e',fontSize:10},axisLine:{lineStyle:{color:'#2a313c'}}},
+    yAxis:{type:'value',axisLabel:{color:'#8b949e',formatter:v=>fmtNum(v)},axisLine:{lineStyle:{color:'#2a313c'}},splitLine:{lineStyle:{color:'#1c2330'}}},
+    series:[
+      {name:'band-l',type:'line',data:lowerBase,stack:'band',symbol:'none',lineStyle:{opacity:0},areaStyle:{opacity:0},silent:true},
+      {name:'band-u',type:'line',data:delta,stack:'band',symbol:'none',lineStyle:{opacity:0},
+        areaStyle:{color:'rgba(210,153,34,.16)'},silent:true},
+      {name:'History',type:'line',data:histSeries,smooth:true,symbolSize:4,connectNulls:false,
+        lineStyle:{color:'#58a6ff',width:2.5},itemStyle:{color:'#58a6ff'},
+        areaStyle:{color:new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'rgba(88,166,255,.25)'},{offset:1,color:'rgba(88,166,255,0)'}])}},
+      {name:'Forecast',type:'line',data:fcSeries,smooth:true,symbolSize:4,connectNulls:false,
+        lineStyle:{color:'#d29922',width:2.5,type:'dashed'},itemStyle:{color:'#d29922'}},
+    ]
   });
 }
 
@@ -475,6 +577,7 @@ document.getElementById('note').innerHTML =
   `⚠ <b>Read me:</b> ${DATA.notes?.revenue||''} ${DATA.notes?.bias||''}`;
 initCharts();
 renderMomentum();
+renderForecast();
 render();
 </script>
 </body>
