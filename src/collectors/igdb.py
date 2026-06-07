@@ -79,14 +79,16 @@ def _unix_to_iso(ts: int | None) -> str | None:
 
 
 def apply_enrichment(conn: sqlite3.Connection, game_id: int, game: dict) -> None:
-    """Update release date; insert genres (source 'igdb') and themes."""
+    """Update release date + concept summary; insert genres and themes."""
     release = _unix_to_iso(game.get("first_release_date"))
-    if release:
-        conn.execute(
-            "UPDATE games SET first_release_date = ?, "
-            "updated_at = datetime('now') WHERE game_id = ?",
-            (release, game_id),
-        )
+    summary = game.get("summary")
+    conn.execute(
+        "UPDATE games SET "
+        "first_release_date = COALESCE(?, first_release_date), "
+        "summary = COALESCE(?, summary), "
+        "updated_at = datetime('now') WHERE game_id = ?",
+        (release, summary, game_id),
+    )
 
     def add_tags(items, source):
         for it in items or []:
@@ -137,8 +139,8 @@ def main(argv: list[str] | None = None) -> int:
             chunk = appids[i:i + BATCH]
             uid_list = ",".join(f'"{a}"' for a in chunk)
             body = (
-                "fields uid, game.first_release_date, game.genres.name, "
-                "game.themes.name; "
+                "fields uid, game.first_release_date, game.summary, "
+                "game.genres.name, game.themes.name; "
                 f"where external_game_source = {STEAM_SOURCE} "
                 f"& uid = ({uid_list}); "
                 "limit 500;"

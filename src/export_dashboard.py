@@ -32,8 +32,8 @@ def _latest_snapshot_rows(conn):
         FROM listing_snapshots s
     )
     SELECT g.game_id, g.canonical_name, g.developer, g.is_indie,
-           g.first_release_date,
-           l.base_price_usd,
+           g.first_release_date, g.summary,
+           l.base_price_usd, l.external_id AS appid,
            ls.price_usd, ls.review_count_total, ls.review_score_pct,
            ls.estimated_owners_min, ls.estimated_owners_max, ls.ccu
     FROM games g
@@ -87,6 +87,8 @@ def build_payload(conn) -> dict:
             "genres": game_genres,
             "themes": themes_by_game.get(r["game_id"], []),
             "rev": round(_est_revenue(reviews, price)),
+            "summary": r["summary"],
+            "appid": r["appid"],
         })
 
     # All aggregation (KPIs, genre opportunity, themes, year trend) happens in

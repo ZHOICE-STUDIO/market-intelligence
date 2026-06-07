@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS games (
     publisher           TEXT,
     is_indie            INTEGER,           -- 1/0/NULL
     first_release_date  TEXT,              -- ISO date 'YYYY-MM-DD'
+    summary             TEXT,              -- the game's concept/pitch (from IGDB)
     created_at          TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at          TEXT NOT NULL DEFAULT (datetime('now'))
 );

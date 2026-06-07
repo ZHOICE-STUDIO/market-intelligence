@@ -72,10 +72,35 @@
   .note{background:var(--panel-2); border:1px solid var(--border); border-left:3px solid var(--warn);
         border-radius:8px; padding:10px 14px; font-size:12px; color:var(--muted); margin-bottom:16px}
 
+  /* clickable rows + modal */
+  #table tbody tr{cursor:pointer}
+  #table tbody tr:hover{background:var(--panel-2)}
+  .overlay{position:fixed; inset:0; background:rgba(0,0,0,.6); backdrop-filter:blur(3px);
+    display:none; align-items:center; justify-content:center; z-index:50; padding:16px}
+  .overlay.show{display:flex}
+  .modal{background:var(--panel); border:1px solid var(--border); border-radius:16px;
+    max-width:620px; width:100%; max-height:86vh; overflow:auto; padding:22px}
+  .modal h3{margin:0 0 2px; font-size:19px}
+  .modal .dev{color:var(--muted); font-size:13px; margin-bottom:14px}
+  .modal .stats{display:grid; grid-template-columns:repeat(auto-fit,minmax(90px,1fr));
+    gap:10px; margin:14px 0}
+  .modal .stat{background:var(--panel-2); border:1px solid var(--border); border-radius:10px; padding:10px}
+  .modal .stat .v{font-size:16px; font-weight:700} .modal .stat .k{color:var(--muted); font-size:11px; margin-top:2px}
+  .modal .concept{font-size:14px; line-height:1.6; color:var(--text); white-space:pre-wrap;
+    background:var(--panel-2); border:1px solid var(--border); border-radius:10px; padding:14px; margin:6px 0 14px}
+  .modal .tags{margin:10px 0}
+  .modal-actions{display:flex; gap:10px; align-items:center; flex-wrap:wrap}
+  .btn{background:var(--accent); color:#0d1117; font-weight:600; text-decoration:none;
+    padding:9px 16px; border-radius:8px; font-size:13px; display:inline-block}
+  .btn.ghost{background:transparent; color:var(--muted); border:1px solid var(--border)}
+  .modal .close{float:right; cursor:pointer; color:var(--muted); font-size:22px; line-height:1; border:none; background:none}
+
   @media(max-width:760px){
     .grid{grid-template-columns:1fr}
     .chart{height:300px}
     h1{font-size:18px}
+    .overlay{align-items:flex-end; padding:0}
+    .modal{border-radius:16px 16px 0 0; max-height:90vh}
   }
 </style>
 </head>
@@ -155,6 +180,19 @@
   </div>
 </div>
 
+<div class="overlay" id="overlay">
+  <div class="modal" id="modal" role="dialog" aria-modal="true">
+    <button class="close" id="modalClose" aria-label="Close">&times;</button>
+    <h3 id="mName"></h3>
+    <div class="dev" id="mDev"></div>
+    <div class="tags" id="mTags"></div>
+    <div class="stats" id="mStats"></div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:4px">Concept</div>
+    <div class="concept" id="mConcept"></div>
+    <div class="modal-actions" id="mActions"></div>
+  </div>
+</div>
+
 <script src="data.js"></script>
 <script>
 const DATA = (window.DASHBOARD_DATA || {games:[], notes:{}});
@@ -162,6 +200,7 @@ const ALL = DATA.games || [];
 
 // ---- state ----
 const state = {seg:'indie', price:'all', search:'', sortKey:'rev', sortDir:-1};
+let currentRows = [];  // games currently shown in the table (for the detail modal)
 
 // ---- helpers ----
 const median = a => { const v=a.filter(x=>x!=null).sort((p,q)=>p-q); if(!v.length) return 0;
@@ -305,9 +344,10 @@ function renderTable(games){
     if(typeof x==='string') return state.sortDir*x.localeCompare(y);
     return state.sortDir*(x-y);
   }).slice(0,150);
-  document.getElementById('tableCount').textContent=`(${games.length} shown, top 150 listed)`;
-  document.querySelector('#table tbody').innerHTML = arr.map(g=>`
-    <tr>
+  currentRows = arr;
+  document.getElementById('tableCount').textContent=`(${games.length} shown, top 150 listed · tap a game to read its concept)`;
+  document.querySelector('#table tbody').innerHTML = arr.map((g,i)=>`
+    <tr data-idx="${i}">
       <td>${g.name}${g.indie?' <span class="tag">indie</span>':''}</td>
       <td>${(g.genres||[]).slice(0,3).map(x=>`<span class="tag">${x}</span>`).join('')}</td>
       <td class="num">${g.year||'–'}</td>
@@ -317,6 +357,34 @@ function renderTable(games){
       <td class="num">${fmtMoney(g.rev)}</td>
     </tr>`).join('');
 }
+
+// ---- detail modal (read a game's concept) ----
+const esc = s => (s==null?'':String(s)).replace(/[&<>]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+function openGame(g){
+  if(!g) return;
+  document.getElementById('mName').textContent = g.name;
+  document.getElementById('mDev').textContent =
+    [g.developer, g.year, g.indie?'Indie':null].filter(Boolean).join(' · ') || '';
+  document.getElementById('mTags').innerHTML =
+    [...(g.genres||[]), ...(g.themes||[])].map(t=>`<span class="tag">${esc(t)}</span>`).join('');
+  const stats = [
+    ['Price', g.price!=null?'$'+g.price:'–'],
+    ['Reviews', fmtNum(g.reviews)],
+    ['Score', g.score!=null?g.score+'%':'–'],
+    ['Est. revenue', fmtMoney(g.rev)],
+  ];
+  document.getElementById('mStats').innerHTML =
+    stats.map(([k,v])=>`<div class="stat"><div class="v">${v}</div><div class="k">${k}</div></div>`).join('');
+  document.getElementById('mConcept').textContent =
+    g.summary || 'No concept text available from IGDB for this game.';
+  document.getElementById('mActions').innerHTML = g.appid
+    ? `<a class="btn" href="https://store.steampowered.com/app/${g.appid}" target="_blank" rel="noopener">Open on Steam ↗</a>
+       <button class="btn ghost" id="mClose2">Close</button>`
+    : `<button class="btn ghost" id="mClose2">Close</button>`;
+  document.getElementById('mClose2').onclick = closeModal;
+  document.getElementById('overlay').classList.add('show');
+}
+function closeModal(){ document.getElementById('overlay').classList.remove('show'); }
 
 // ---- orchestrate ----
 function render(){
@@ -337,6 +405,15 @@ let st; document.getElementById('search').oninput=e=>{clearTimeout(st); st=setTi
 document.querySelectorAll('#table th[data-sort]').forEach(th=>th.onclick=()=>{
   const k=th.dataset.sort; state.sortDir = state.sortKey===k? -state.sortDir : -1; state.sortKey=k;
   renderTable(filtered());});
+
+// row click -> open concept modal (event delegation survives re-renders)
+document.querySelector('#table tbody').addEventListener('click', e=>{
+  const tr = e.target.closest('tr[data-idx]'); if(!tr) return;
+  openGame(currentRows[+tr.dataset.idx]);
+});
+document.getElementById('modalClose').onclick = closeModal;
+document.getElementById('overlay').addEventListener('click', e=>{ if(e.target.id==='overlay') closeModal(); });
+document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeModal(); });
 
 // ---- boot ----
 document.getElementById('subtitle').textContent =

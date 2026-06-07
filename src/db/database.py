@@ -22,13 +22,30 @@ def get_connection(db_path: Path | str = DB_PATH) -> sqlite3.Connection:
     return conn
 
 
+# Columns added after the initial schema. Because CREATE TABLE IF NOT EXISTS
+# won't alter an existing table, we add any missing ones here (idempotent).
+MIGRATIONS = {
+    "games": [("summary", "TEXT")],
+}
+
+
+def _apply_migrations(conn: sqlite3.Connection) -> None:
+    for table, columns in MIGRATIONS.items():
+        existing = {r[1] for r in conn.execute(f"PRAGMA table_info({table})")}
+        for name, coltype in columns:
+            if name not in existing:
+                conn.execute(f"ALTER TABLE {table} ADD COLUMN {name} {coltype}")
+    conn.commit()
+
+
 def init_db(db_path: Path | str = DB_PATH) -> None:
-    """Create the database file and apply the schema (idempotent)."""
+    """Create the database file, apply the schema, and migrate (idempotent)."""
     db_path = Path(db_path)
     db_path.parent.mkdir(parents=True, exist_ok=True)
     schema = SCHEMA_PATH.read_text(encoding="utf-8")
     with get_connection(db_path) as conn:
         conn.executescript(schema)
+        _apply_migrations(conn)
     print(f"Initialized database at {db_path}")
 
 
