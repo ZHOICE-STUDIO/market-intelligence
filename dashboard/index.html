@@ -240,7 +240,7 @@ function renderMatrix(ga){
       axisLabel:{color:'#8b949e',formatter:v=>fmtMoney(v)},axisLine:{lineStyle:{color:'#2a313c'}},splitLine:{lineStyle:{color:'#1c2330'}}},
     series:[{
       type:'scatter',
-      symbolSize:d=>8+38*Math.sqrt(d.d.total/maxT),
+      symbolSize:(val,params)=>8+38*Math.sqrt(params.data.d.total/maxT),
       itemStyle:{color:p=>{const d=p.data.d; return (d.games<=mx && d.medRev>=my)?'#3fb950':'#58a6ff';},opacity:.8,borderColor:'#0d1117'},
       label:{show:true,formatter:p=>p.data.d.name,position:'top',color:'#8b949e',fontSize:10},
       markLine:{silent:true,symbol:'none',lineStyle:{color:'#3a414d',type:'dashed'},

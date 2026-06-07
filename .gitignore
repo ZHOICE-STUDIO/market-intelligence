@@ -29,3 +29,7 @@ reports/output/
 # OS
 .DS_Store
 Thumbs.db
+
+# Node (ad-hoc tooling)
+node_modules/
+_*.js
