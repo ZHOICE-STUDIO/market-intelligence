@@ -1,0 +1,13 @@
+# HTTP + retries
+requests>=2.31
+tenacity>=8.2
+
+# Data analysis
+pandas>=2.2
+matplotlib>=3.8
+
+# Config
+python-dotenv>=1.0
+
+# Notebooks
+jupyter>=1.0

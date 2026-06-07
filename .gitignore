@@ -10,6 +10,11 @@ venv/
 .ipynb_checkpoints/
 *.ipynb_checkpoints
 
+# SQLite database (rebuildable from collectors; don't commit)
+data/market.db
+data/*.db-journal
+data/*.db-wal
+
 # Data (raw large files — commit processed/sample only)
 data/raw/*.csv
 data/raw/*.xlsx
