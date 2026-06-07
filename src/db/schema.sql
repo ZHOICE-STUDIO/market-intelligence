@@ -104,6 +104,24 @@ CREATE INDEX IF NOT EXISTS idx_reviews_listing
     ON reviews (listing_id);
 
 -- ---------------------------------------------------------------------------
+-- Review history: monthly review volume per listing, backfilled from Steam's
+-- review histogram. This is RETROACTIVE time-series (a game's whole lifetime),
+-- so it gives genre momentum / timing signal without waiting to accumulate
+-- our own snapshots.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS review_history (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    listing_id    INTEGER NOT NULL REFERENCES listings(listing_id) ON DELETE CASCADE,
+    period_start  TEXT NOT NULL,          -- ISO month start 'YYYY-MM-01'
+    up            INTEGER,
+    down          INTEGER,
+    UNIQUE (listing_id, period_start)
+);
+
+CREATE INDEX IF NOT EXISTS idx_revhist_listing
+    ON review_history (listing_id);
+
+-- ---------------------------------------------------------------------------
 -- Collection run log: bookkeeping for each pipeline execution
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS collection_runs (

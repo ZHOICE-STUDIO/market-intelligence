@@ -61,6 +61,62 @@ def _est_revenue(reviews, price):
     return reviews * BOXLEITER_MULTIPLIER * price
 
 
+def build_momentum(conn) -> dict:
+    """Genre momentum from monthly review history: recent 6 months vs the prior
+    6, plus a market-wide monthly trend. Market-wide (not affected by the
+    dashboard's indie/price filters)."""
+    # reviews per (month, genre); a game counts in each of its IGDB genres
+    rows = conn.execute(
+        "SELECT rh.period_start AS m, ge.name AS genre, "
+        "SUM(COALESCE(rh.up,0)+COALESCE(rh.down,0)) AS rev "
+        "FROM review_history rh "
+        "JOIN listings l ON rh.listing_id = l.listing_id "
+        "JOIN game_genres gg ON l.game_id = gg.game_id AND gg.source='igdb-genre' "
+        "JOIN genres ge ON gg.genre_id = ge.genre_id "
+        "GROUP BY rh.period_start, ge.name"
+    ).fetchall()
+    market = conn.execute(
+        "SELECT period_start AS m, SUM(COALESCE(up,0)+COALESCE(down,0)) AS rev "
+        "FROM review_history GROUP BY period_start ORDER BY period_start"
+    ).fetchall()
+    if not market:
+        return {"available": False}
+
+    months = [r["m"] for r in market]
+    axis = months[:-1] if len(months) > 1 else months  # drop current partial month
+    recent = set(axis[-6:])
+    prior = set(axis[-12:-6])
+
+    by_genre: dict[str, dict] = {}
+    for r in rows:
+        d = by_genre.setdefault(r["genre"], {"recent": 0, "prior": 0})
+        if r["m"] in recent:
+            d["recent"] += r["rev"]
+        elif r["m"] in prior:
+            d["prior"] += r["rev"]
+
+    genres = []
+    for name, d in by_genre.items():
+        if d["recent"] < 500:          # ignore thin/noisy genres
+            continue
+        ratio = (d["recent"] / d["prior"]) if d["prior"] else None
+        genres.append({"name": name, "recent": d["recent"], "prior": d["prior"],
+                       "change_pct": round((ratio - 1) * 100, 1) if ratio else None})
+    genres.sort(key=lambda x: (x["change_pct"] is None, -(x["change_pct"] or 0)))
+
+    # Trend excludes the current partial month (axis already dropped it) so the
+    # line doesn't crash misleadingly at the end.
+    trend_map = {r["m"]: r["rev"] for r in market}
+    trend = [{"month": m, "reviews": trend_map[m]} for m in axis[-24:]]
+    return {
+        "available": True,
+        "as_of": axis[-1] if axis else None,
+        "window": "last 6 months vs the prior 6 (review volume)",
+        "genres": genres,
+        "market": trend,
+    }
+
+
 def build_payload(conn) -> dict:
     rows = _latest_snapshot_rows(conn)
     genres_by_game = _game_genres(conn, "igdb-genre")
@@ -96,6 +152,7 @@ def build_payload(conn) -> dict:
     return {
         "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
         "games": games,
+        "momentum": build_momentum(conn),
         "notes": {
             "revenue": f"Estimated revenue = reviews x {BOXLEITER_MULTIPLIER} x price (Boxleiter method). A rough proxy, not actual sales.",
             "bias": "Universe = top ~1000 games by ownership, so it skews toward established hits. Newer/smaller games are under-represented until the long tail is added.",

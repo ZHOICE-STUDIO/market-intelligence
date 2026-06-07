@@ -141,6 +141,18 @@
       <div id="matrix" class="chart tall"></div>
     </div>
 
+    <div class="panel full" id="momoPanel">
+      <h2>🔥 Hot vs Cooling genres — what's rising right now</h2>
+      <p class="hint" id="momoHint">Change in monthly review volume: <span style="color:var(--good)">green = heating up</span>, <span style="color:var(--bad)">red = cooling down</span>. Market-wide (not filtered).</p>
+      <div id="momoBar" class="chart"></div>
+    </div>
+
+    <div class="panel full" id="marketPanel">
+      <h2>Market review activity (last 24 months)</h2>
+      <p class="hint">Total monthly review volume across the tracked universe — the overall pulse of player activity.</p>
+      <div id="marketLine" class="chart"></div>
+    </div>
+
     <div class="panel">
       <h2>Genres by game count</h2>
       <p class="hint">How crowded each genre is (supply).</p>
@@ -264,7 +276,7 @@ function initCharts(){
   cGenre=echarts.init(document.getElementById('genreBar'));
   cTheme=echarts.init(document.getElementById('themeBar'));
   cYear=echarts.init(document.getElementById('yearLine'));
-  window.addEventListener('resize',()=>{[cMatrix,cGenre,cTheme,cYear].forEach(c=>c.resize());});
+  window.addEventListener('resize',()=>{[cMatrix,cGenre,cTheme,cYear,cMomo,cMarket].forEach(c=>c&&c.resize());});
 }
 
 function renderMatrix(ga){
@@ -318,6 +330,47 @@ function renderYear(ya){
     series:[{type:'line',smooth:true,data:ya.map(d=>d.games),symbolSize:6,
       lineStyle:{color:'#3fb950',width:2},itemStyle:{color:'#3fb950'},
       areaStyle:{color:new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'rgba(63,185,80,.35)'},{offset:1,color:'rgba(63,185,80,0)'}])}}]
+  });
+}
+
+// ---- momentum (static, market-wide) ----
+let cMomo, cMarket;
+function renderMomentum(){
+  const mo = DATA.momentum;
+  if(!mo || !mo.available){ document.getElementById('momoPanel').style.display='none';
+    document.getElementById('marketPanel').style.display='none'; return; }
+  document.getElementById('momoHint').innerHTML +=
+    ` <b>As of ${mo.as_of||'—'}</b>, ${mo.window}.`;
+
+  // pick the most-moved genres (both directions), enough recent volume
+  const g = mo.genres.filter(x=>x.change_pct!=null);
+  const top = [...g].slice(0,8);                 // hottest
+  const bottom = [...g].slice(-6);               // coolest
+  const seen = new Set(); const pick = [];
+  [...top, ...bottom].forEach(x=>{ if(!seen.has(x.name)){ seen.add(x.name); pick.push(x); } });
+  pick.sort((a,b)=>a.change_pct-b.change_pct);   // ascending so green ends on top
+
+  cMomo = cMomo || echarts.init(document.getElementById('momoBar'));
+  cMomo.setOption({
+    grid:{left:8,right:60,top:10,bottom:24,containLabel:true},
+    tooltip:{trigger:'axis',axisPointer:{type:'shadow'},backgroundColor:'#161b22',borderColor:'#2a313c',textStyle:{color:'#e6edf3'},
+      formatter:p=>{const d=pick[p[0].dataIndex]; return `<b>${d.name}</b><br>${d.change_pct>0?'+':''}${d.change_pct}% review volume<br>recent ${fmtNum(d.recent)} vs prior ${fmtNum(d.prior)}`;}},
+    xAxis:{type:'value',axisLabel:{color:'#8b949e',formatter:v=>v+'%'},axisLine:{lineStyle:{color:'#2a313c'}},splitLine:{lineStyle:{color:'#1c2330'}}},
+    yAxis:{type:'category',data:pick.map(d=>d.name),axisLabel:{color:'#e6edf3',fontSize:11},axisLine:{lineStyle:{color:'#2a313c'}}},
+    series:[{type:'bar',data:pick.map(d=>({value:d.change_pct,itemStyle:{color:d.change_pct>=0?'#3fb950':'#f85149',borderRadius:[0,4,4,0]}})),
+      label:{show:true,position:'right',color:'#8b949e',fontSize:10,formatter:p=>(p.value>0?'+':'')+p.value+'%'},barWidth:'62%'}]
+  });
+
+  cMarket = cMarket || echarts.init(document.getElementById('marketLine'));
+  cMarket.setOption({
+    grid:{left:50,right:24,top:16,bottom:30},
+    tooltip:{trigger:'axis',backgroundColor:'#161b22',borderColor:'#2a313c',textStyle:{color:'#e6edf3'},
+      formatter:p=>`${p[0].axisValue}<br>${fmtNum(p[0].value)} reviews`},
+    xAxis:{type:'category',data:mo.market.map(d=>d.month.slice(0,7)),axisLabel:{color:'#8b949e'},axisLine:{lineStyle:{color:'#2a313c'}}},
+    yAxis:{type:'value',axisLabel:{color:'#8b949e',formatter:v=>fmtNum(v)},axisLine:{lineStyle:{color:'#2a313c'}},splitLine:{lineStyle:{color:'#1c2330'}}},
+    series:[{type:'line',smooth:true,data:mo.market.map(d=>d.reviews),symbolSize:5,
+      lineStyle:{color:'#58a6ff',width:2},itemStyle:{color:'#58a6ff'},
+      areaStyle:{color:new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'rgba(88,166,255,.30)'},{offset:1,color:'rgba(88,166,255,0)'}])}}]
   });
 }
 
@@ -421,6 +474,7 @@ document.getElementById('subtitle').textContent =
 document.getElementById('note').innerHTML =
   `⚠ <b>Read me:</b> ${DATA.notes?.revenue||''} ${DATA.notes?.bias||''}`;
 initCharts();
+renderMomentum();
 render();
 </script>
 </body>
