@@ -6,6 +6,9 @@ tenacity>=8.2
 pandas>=2.2
 matplotlib>=3.8
 
+# Public-company financials (Studios view)
+yfinance>=0.2
+
 # Config
 python-dotenv>=1.0
 

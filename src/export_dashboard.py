@@ -14,6 +14,7 @@ Usage:
 from __future__ import annotations
 
 import json
+import sqlite3
 from datetime import datetime, timezone
 
 from src.db.database import REPO_ROOT, get_connection
@@ -51,7 +52,7 @@ def _latest_snapshot_rows(conn):
                                   ORDER BY s.captured_at DESC, s.snapshot_id DESC) rn
         FROM listing_snapshots s
     )
-    SELECT g.game_id, g.canonical_name, g.developer, g.is_indie,
+    SELECT g.game_id, g.canonical_name, g.developer, g.publisher, g.is_indie,
            g.first_release_date, g.summary,
            l.base_price_usd, l.external_id AS appid,
            ls.price_usd, ls.review_count_total, ls.review_score_pct,
@@ -267,6 +268,31 @@ def build_forecast(conn) -> dict:
     }
 
 
+def _company_financials(conn) -> dict:
+    """Real public-market financials keyed by the developer/publisher name, so
+    the browser can show a studio's actual revenue/profit/market cap. Empty if
+    the financials collector hasn't run."""
+    try:
+        rows = conn.execute(
+            "SELECT company, ticker, listed_name, is_parent, currency, "
+            "market_cap_usd, revenue_usd, net_income_usd, gross_profit_usd, "
+            "profit_margin, employees, as_of FROM company_financials"
+        ).fetchall()
+    except sqlite3.OperationalError:
+        return {}
+    out = {}
+    for r in rows:
+        out[r["company"]] = {
+            "ticker": r["ticker"], "listed": r["listed_name"],
+            "is_parent": bool(r["is_parent"]), "currency": r["currency"],
+            "market_cap": r["market_cap_usd"], "revenue": r["revenue_usd"],
+            "net_income": r["net_income_usd"], "gross_profit": r["gross_profit_usd"],
+            "margin": r["profit_margin"], "employees": r["employees"],
+            "as_of": r["as_of"],
+        }
+    return out
+
+
 def build_payload(conn) -> dict:
     rows = _latest_snapshot_rows(conn)
     genres_by_game = _game_genres(conn, "igdb-genre")
@@ -283,6 +309,7 @@ def build_payload(conn) -> dict:
         games.append({
             "name": r["canonical_name"],
             "developer": r["developer"],
+            "publisher": r["publisher"],
             "indie": is_indie,
             "year": (r["first_release_date"] or "")[:4] or None,
             "price": round(price, 2) if price is not None else None,
@@ -302,6 +329,7 @@ def build_payload(conn) -> dict:
     return {
         "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
         "games": games,
+        "financials": _company_financials(conn),
         "momentum": build_momentum(conn),
         "forecast": build_forecast(conn),
         "notes": {

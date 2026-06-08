@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(.venv/Scripts/python.exe -c \"import sqlite3;c=sqlite3.connect\\('data/market.db'\\);p=lambda q:c.execute\\(q\\).fetchone\\(\\)[0];print\\('games',p\\('select count\\(*\\) from games'\\)\\);print\\('snapshots',p\\('select count\\(*\\) from listing_snapshots'\\)\\);print\\('review_history',p\\('select count\\(*\\) from review_history'\\)\\);print\\('igdb_genres',p\\(\\\\\"select count\\(*\\) from game_genres where source='igdb-genre'\\\\\"\\)\\)\")",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(gh api *)",
+      "Bash(python -c \"import sys,json;d=json.load\\(sys.stdin\\);print\\('status:',d.get\\('status'\\)\\);print\\('commit:',d.get\\('commit'\\)\\);print\\('updated:',d.get\\('updated_at'\\)\\)\")",
+      "Bash(node -e ' *)",
+      "Bash(.venv/Scripts/python.exe -m src.collectors.discover_steam --pages 10)",
+      "Bash(tasklist)",
+      "Bash(.venv/Scripts/python.exe -c \"import sqlite3;c=sqlite3.connect\\('data/market.db'\\);print\\('games:',c.execute\\('select count\\(*\\) from games'\\).fetchone\\(\\)[0]\\);print\\('snapshots:',c.execute\\('select count\\(*\\) from listing_snapshots'\\).fetchone\\(\\)[0]\\)\")",
+      "Bash(node -e \"const fs=require\\('fs'\\);const h=fs.readFileSync\\('dashboard/index.html','utf8'\\);const b=[...h.matchAll\\(/<script\\(?![^>]*src\\)[^>]*>\\([\\\\s\\\\S]*?\\)<\\\\/script>/g\\)];new Function\\(b[b.length-1][1]\\);console.log\\('JS syntax OK'\\);\")",
+      "Bash(.venv/Scripts/python.exe -c \"import sqlite3;c=sqlite3.connect\\('data/market.db'\\);print\\('games:',c.execute\\('select count\\(*\\) from games'\\).fetchone\\(\\)[0]\\)\")",
+      "Bash(.venv/Scripts/python.exe -m src.collectors.igdb)",
+      "Bash(.venv/Scripts/python.exe -m src.export_dashboard)"
+    ]
+  }
+}

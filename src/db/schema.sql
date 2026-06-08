@@ -122,6 +122,29 @@ CREATE INDEX IF NOT EXISTS idx_revhist_listing
     ON review_history (listing_id);
 
 -- ---------------------------------------------------------------------------
+-- Company financials: real financials for the handful of PUBLIC game companies
+-- (most studios are private and have none). Pulled from public markets and
+-- normalized to USD so a studio's est.-revenue footprint here can be read next
+-- to its parent company's actual revenue / profit / market cap.
+-- Keyed by the developer/publisher string as it appears in `games`, so export
+-- can join by name. Several DB names may map to the same listed entity.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS company_financials (
+    company           TEXT PRIMARY KEY,   -- matches games.developer / games.publisher
+    ticker            TEXT,
+    listed_name       TEXT,               -- the actual listed entity (may be a parent)
+    is_parent         INTEGER,            -- 1 if financials are the parent group's, not this label's alone
+    currency          TEXT,               -- native reporting currency
+    market_cap_usd    REAL,
+    revenue_usd       REAL,
+    net_income_usd    REAL,
+    gross_profit_usd  REAL,
+    profit_margin     REAL,               -- net margin (0-1)
+    employees         INTEGER,
+    as_of             TEXT
+);
+
+-- ---------------------------------------------------------------------------
 -- Collection run log: bookkeeping for each pipeline execution
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS collection_runs (

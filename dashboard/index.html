@@ -271,6 +271,41 @@
       <div id="yearLine" class="chart"></div>
     </div>
 
+    <div class="sectionhead"><h3>🏢 Studios &amp; publishers</h3><span>who makes the games — Steam footprint vs. real public financials</span></div>
+
+    <div class="panel full" id="studioPanel">
+      <h2>Studio leaderboard <span id="studioCount" class="hint"></span></h2>
+      <p class="hint"><b>Est. rev (Steam)</b> = Boxleiter proxy summed across the studio's games here. <span style="color:var(--accent2)">Public companies</span> also show <b>real</b> market cap / revenue / net income in USD as reported. <b>ⓟ</b> = the figure belongs to a listed <b>parent</b> group (e.g. Rockstar → Take-Two), not the label alone. Respects the Price / Search filters above.</p>
+      <div class="tfilters">
+        <span class="group"><span class="label">Group by</span>
+          <span class="chip active" data-unit="publisher">Publisher</span>
+          <span class="chip" data-unit="developer">Developer</span>
+        </span>
+        <span class="group"><span class="label">Show</span>
+          <span class="chip active" data-scope="all">All studios</span>
+          <span class="chip" data-scope="public">Public only 📈</span>
+        </span>
+      </div>
+      <div id="studioBar" class="chart"></div>
+      <div class="tablewrap" style="max-height:520px; margin-top:16px">
+        <table id="studioTable">
+          <thead><tr>
+            <th data-sk="name">Studio</th>
+            <th class="num" data-sk="games">Games</th>
+            <th class="num" data-sk="rev">Est. rev (Steam)</th>
+            <th class="num" data-sk="score">Med. score</th>
+            <th data-sk="span">Active</th>
+            <th data-sk="ticker">Ticker</th>
+            <th class="num" data-sk="mcap">Market cap</th>
+            <th class="num" data-sk="frev">Revenue</th>
+            <th class="num" data-sk="net">Net income</th>
+            <th class="num" data-sk="margin">Margin</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
     <div class="sectionhead"><h3>📋 Browse the catalog</h3><span>filter by genre / theme, price, score and more</span></div>
 
     <div class="panel full">
@@ -352,15 +387,18 @@ const ALL = DATA.games || [];
 
 // ---- state ----
 const state = {price:'all', search:'', sortKey:'rev', sortDir:-1,
-  tGenres:[], tGenreMode:'any', tScoreMin:0, tReviewsMin:0, tYearFrom:'', tYearTo:''};
+  tGenres:[], tGenreMode:'any', tScoreMin:0, tReviewsMin:0, tYearFrom:'', tYearTo:'',
+  studioUnit:'publisher', studioScope:'all', studioSort:'rev', studioDir:-1};
+const FIN = DATA.financials || {};
 let currentRows = [];  // games currently shown in the table (for the detail modal)
 
 // ---- helpers ----
 const median = a => { const v=a.filter(x=>x!=null).sort((p,q)=>p-q); if(!v.length) return 0;
   const m=Math.floor(v.length/2); return v.length%2 ? v[m] : (v[m-1]+v[m])/2; };
 const mean = a => { const v=a.filter(x=>x!=null); return v.length? v.reduce((s,x)=>s+x,0)/v.length : 0; };
-const fmtMoney = n => { if(n>=1e9) return '$'+(n/1e9).toFixed(2)+'B'; if(n>=1e6) return '$'+(n/1e6).toFixed(1)+'M';
-  if(n>=1e3) return '$'+(n/1e3).toFixed(0)+'K'; return '$'+Math.round(n); };
+const fmtMoney = n => { if(n==null||isNaN(n)) return '–'; const s=n<0?'-':'', a=Math.abs(n);
+  if(a>=1e9) return s+'$'+(a/1e9).toFixed(2)+'B'; if(a>=1e6) return s+'$'+(a/1e6).toFixed(1)+'M';
+  if(a>=1e3) return s+'$'+(a/1e3).toFixed(0)+'K'; return s+'$'+Math.round(a); };
 const fmtNum = n => n>=1e6? (n/1e6).toFixed(1)+'M' : n>=1e3? (n/1e3).toFixed(0)+'K' : String(n);
 
 function priceMatch(g){
@@ -425,19 +463,37 @@ function yearAgg(games){
   const m={}; games.forEach(g=>{ if(g.year) m[g.year]=(m[g.year]||0)+1; });
   return Object.entries(m).map(([year,games])=>({year,games})).sort((a,b)=>a.year.localeCompare(b.year));
 }
+// Aggregate the catalog by studio (developer or publisher) and bolt on real
+// public-market financials where we have them, so the "Steam footprint" sits
+// next to the company's actual revenue/profit like a stock screener row.
+function studioAgg(games, unit){
+  const m={};
+  games.forEach(g=>{
+    const name=g[unit]; if(!name) return;
+    (m[name] ||= {name, games:0, rev:0, scores:[], minY:null, maxY:null});
+    const d=m[name]; d.games++; d.rev+=g.rev||0;
+    if(g.score!=null) d.scores.push(g.score);
+    if(g.year){ if(!d.minY||g.year<d.minY) d.minY=g.year; if(!d.maxY||g.year>d.maxY) d.maxY=g.year; }
+  });
+  return Object.values(m).map(d=>{
+    const f=FIN[d.name]||null;
+    return {...d, score:d.scores.length?median(d.scores):null, fin:f};
+  });
+}
 
 // ---- charts ----
 const AX=()=>({axisLine:{lineStyle:{color:'#2b3160'}},axisLabel:{color:'#a0aec0'},splitLine:{lineStyle:{color:'#1a1f37'}}});
 const SHARE_COLORS=['#3a8bff','#01b574','#7551ff','#ffb547','#ef4d56','#39c5cf','#db61a2',
   '#a371f7','#e3b341','#7ee787','#79c0ff','#ffa657','#ff7b72','#56d364'];
-let cMatrix,cGenre,cTheme,cYear,cShare;
+let cMatrix,cGenre,cTheme,cYear,cShare,cStudio;
 function initCharts(){
   cMatrix=echarts.init(document.getElementById('matrix'));
   cShare=echarts.init(document.getElementById('shareChart'));
   cGenre=echarts.init(document.getElementById('genreBar'));
   cTheme=echarts.init(document.getElementById('themeBar'));
   cYear=echarts.init(document.getElementById('yearLine'));
-  window.addEventListener('resize',()=>{[cMatrix,cShare,cGenre,cTheme,cYear,cMomo,cMarket,cForecast].forEach(c=>c&&c.resize());});
+  cStudio=echarts.init(document.getElementById('studioBar'));
+  window.addEventListener('resize',()=>{[cMatrix,cShare,cGenre,cTheme,cYear,cStudio,cMomo,cMarket,cForecast].forEach(c=>c&&c.resize());});
 }
 
 function renderMatrix(ga){
@@ -522,6 +578,58 @@ function renderYear(ya){
       lineStyle:{color:'#01b574',width:2},itemStyle:{color:'#01b574'},
       areaStyle:{color:new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'rgba(1,181,116,.35)'},{offset:1,color:'rgba(1,181,116,0)'}])}}]
   });
+}
+
+// ---- studios & publishers ----
+const SK_SORT = {  // table sort accessors
+  name:s=>s.name.toLowerCase(), games:s=>s.games, rev:s=>s.rev,
+  score:s=>s.score??-1, span:s=>s.minY||'9999', ticker:s=>s.fin?s.fin.ticker:'~',
+  mcap:s=>s.fin?.market_cap??-1, frev:s=>s.fin?.revenue??-1,
+  net:s=>s.fin?.net_income??-1e18, margin:s=>s.fin?.margin??-1e9,
+};
+function renderStudios(games){
+  let rows=studioAgg(games, state.studioUnit);
+  if(state.studioScope==='public') rows=rows.filter(s=>s.fin);
+  rows=rows.filter(s=>s.games>=1);
+  const acc=SK_SORT[state.studioSort]||SK_SORT.rev, dir=state.studioDir;
+  rows.sort((a,b)=>{const x=acc(a),y=acc(b); return (x<y?-1:x>y?1:0)*-dir;});
+  const asOf=Object.values(FIN)[0]?.as_of;
+  document.getElementById('studioCount').textContent =
+    `· ${rows.length} ${state.studioUnit}s` + (state.studioScope==='public'?' (public)':'')
+    + (asOf?` · financials as of ${asOf}`:'');
+
+  // bar: top 15 by Steam est. revenue
+  const top=[...rows].sort((a,b)=>b.rev-a.rev).slice(0,15).reverse();
+  cStudio.setOption({
+    grid:{left:8,right:46,top:10,bottom:24,containLabel:true},
+    tooltip:{trigger:'axis',axisPointer:{type:'shadow'},backgroundColor:'#0f1535',borderColor:'#2b3160',textStyle:{color:'#e9edf7'},
+      formatter:p=>{const s=top[p[0].dataIndex]; return `<b>${esc(s.name)}</b><br>Est. rev (Steam): ${fmtMoney(s.rev)}<br>${s.games} games`+(s.fin?`<br>Real revenue: ${fmtMoney(s.fin.revenue)}${s.fin.is_parent?' ⓟ':''}`:'');}},
+    xAxis:{type:'value',axisLabel:{color:'#a0aec0',formatter:v=>fmtMoney(v)},axisLine:{lineStyle:{color:'#2b3160'}},splitLine:{lineStyle:{color:'#1a1f37'}}},
+    yAxis:{type:'category',data:top.map(s=>s.name),axisLabel:{color:'#e9edf7',fontSize:11,formatter:v=>v.length>22?v.slice(0,21)+'…':v},axisLine:{lineStyle:{color:'#2b3160'}}},
+    series:[{type:'bar',data:top.map(s=>({value:s.rev,itemStyle:{color:s.fin?'#7551ff':'#3a8bff'}})),barWidth:'62%',
+      itemStyle:{borderRadius:[0,4,4,0]}}]
+  });
+
+  // table
+  const fmtPM=m=>m==null?'—':`<span class="${m>=0?'pos':'neg'}">${(m*100).toFixed(1)}%</span>`;
+  const fmtNet=n=>n==null?'—':`<span class="${n>=0?'pos':'neg'}">${fmtMoney(n)}</span>`;
+  const body=rows.slice(0,300).map(s=>{
+    const f=s.fin, p=f&&f.is_parent?'<span title="parent group, not this label alone" style="color:var(--muted)"> ⓟ</span>':'';
+    return `<tr>`
+      +`<td>${esc(s.name)}</td>`
+      +`<td class="num">${s.games}</td>`
+      +`<td class="num">${fmtMoney(s.rev)}</td>`
+      +`<td class="num">${s.score!=null?s.score.toFixed(0)+'%':'—'}</td>`
+      +`<td>${s.minY?(s.minY===s.maxY?s.minY:s.minY+'–'+s.maxY):'—'}</td>`
+      +`<td>${f?`<span class="tag" style="color:var(--accent)">${esc(f.ticker)}</span>${p}`:'—'}</td>`
+      +`<td class="num">${f?fmtMoney(f.market_cap):'—'}</td>`
+      +`<td class="num">${f?fmtMoney(f.revenue):'—'}</td>`
+      +`<td class="num">${f?fmtNet(f.net_income):'—'}</td>`
+      +`<td class="num">${f?fmtPM(f.margin):'—'}</td>`
+      +`</tr>`;
+  }).join('');
+  document.querySelector('#studioTable tbody').innerHTML = body
+    || `<tr><td colspan="10" style="color:var(--muted);text-align:center;padding:20px">No studios match.</td></tr>`;
 }
 
 // ---- momentum + forecast (static, market-wide) ----
@@ -738,6 +846,7 @@ function render(){
   const ga=genreAgg(games), ta=themeAgg(games), ya=yearAgg(games);
   renderKpis(games);
   renderShare(ga); renderMatrix(ga); renderGenreBar(ga); renderThemeBar(ta); renderYear(ya);
+  renderStudios(games);
   renderTable(tableFilter(games));
 }
 
@@ -749,6 +858,15 @@ let st; document.getElementById('search').oninput=e=>{clearTimeout(st); st=setTi
 document.querySelectorAll('#table th[data-sort]').forEach(th=>th.onclick=()=>{
   const k=th.dataset.sort; state.sortDir = state.sortKey===k? -state.sortDir : -1; state.sortKey=k;
   renderTable(tableFilter(filtered()));});
+
+// studio section: group-by + scope toggles, and sortable financial table
+document.querySelectorAll('.chip[data-unit]').forEach(c=>c.onclick=()=>{
+  state.studioUnit=c.dataset.unit; setActive('data-unit',c); renderStudios(filtered());});
+document.querySelectorAll('.chip[data-scope]').forEach(c=>c.onclick=()=>{
+  state.studioScope=c.dataset.scope; setActive('data-scope',c); renderStudios(filtered());});
+document.querySelectorAll('#studioTable th[data-sk]').forEach(th=>th.onclick=()=>{
+  const k=th.dataset.sk; state.studioDir = state.studioSort===k? -state.studioDir : -1; state.studioSort=k;
+  renderStudios(filtered());});
 
 // table-only filters: populate dropdowns from the data, then wire change events
 function initTableFilters(){
