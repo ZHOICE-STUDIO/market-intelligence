@@ -61,6 +61,13 @@
   .ddpanel.show{display:block}
   .ddmode{display:flex; align-items:center; gap:6px; margin-bottom:8px}
   .ddmode .chip{padding:3px 10px; font-size:12px}
+  .ddsearch{display:flex; align-items:center; gap:6px; margin-bottom:8px; padding:4px 8px;
+    background:var(--chip); border:1px solid var(--border); border-radius:8px}
+  .ddsearch svg{flex:none; width:13px; height:13px; stroke:var(--muted)}
+  .ddsearch input{flex:1; min-width:0; background:none; border:none; color:var(--text);
+    font-size:13px; outline:none}
+  .ddsearch input::placeholder{color:var(--muted)}
+  .ddlist label.hide{display:none}
   .ddlist{max-height:240px; overflow:auto; display:flex; flex-direction:column; gap:1px}
   .ddlist label{display:flex; align-items:center; gap:8px; font-size:13px; padding:4px 6px;
     border-radius:6px; cursor:pointer}
@@ -242,6 +249,10 @@
               <div class="ddmode"><span class="label">Match</span>
                 <span class="chip mode active" data-mode="any">Any</span>
                 <span class="chip mode" data-mode="all">All</span></div>
+              <div class="ddsearch">
+                <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <input type="text" id="tfGenreSearch" placeholder="Search genre / theme…" autocomplete="off" />
+              </div>
               <div class="ddlist" id="tfGenreList"></div>
               <div class="ddfoot"><span class="chip" id="tfGenreClear">Clear</span></div>
             </div>
@@ -702,6 +713,11 @@ function initTableFilters(){
     document.querySelectorAll('#tfGenreList input:checked').forEach(i=>i.checked=false);
     updateGenreBtn(); };
   document.getElementById('tfGenreClear').onclick=()=>{ clearGenres(); apply(); };
+  document.getElementById('tfGenreSearch').addEventListener('input', e=>{
+    const q=e.target.value.trim().toLowerCase();
+    document.querySelectorAll('#tfGenreList label').forEach(l=>
+      l.classList.toggle('hide', !!q && !l.textContent.toLowerCase().includes(q)));
+  });
 
   // --- year range + numeric selects ---
   const years=[...new Set(ALL.map(g=>g.year).filter(Boolean))].sort();
