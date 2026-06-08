@@ -38,11 +38,18 @@
   }
   .chip:hover{border-color:var(--accent)}
   .chip.active{background:var(--accent); border-color:var(--accent); color:#0d1117; font-weight:600}
-  input[type=search]{
-    background:var(--chip); border:1px solid var(--border); color:var(--text);
-    padding:7px 12px; border-radius:8px; font-size:13px; min-width:160px; flex:1;
+  .searchbox{
+    flex:1; min-width:200px; max-width:340px; margin-left:auto;
+    display:flex; align-items:center; gap:8px;
+    background:var(--chip); border:1px solid var(--border); border-radius:8px; padding:0 10px;
   }
-  input[type=search]:focus{outline:none; border-color:var(--accent)}
+  .searchbox:focus-within{border-color:var(--accent)}
+  .searchbox svg{flex:none; width:14px; height:14px; stroke:var(--muted)}
+  input[type=search]{
+    flex:1; min-width:0; background:none; border:none; color:var(--text);
+    padding:7px 0; font-size:13px;
+  }
+  input[type=search]:focus{outline:none}
   select{
     background:var(--chip); border:1px solid var(--border); color:var(--text);
     padding:7px 12px; border-radius:8px; font-size:13px; cursor:pointer;
@@ -162,7 +169,8 @@
     <span class="chip" data-price="10to30">$10–30</span>
     <span class="chip" data-price="gt30">&gt;$30</span>
   </div>
-  <div class="group" style="flex:1">
+  <div class="group searchbox">
+    <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
     <input type="search" id="search" placeholder="Search game / developer…" />
   </div>
 </div>
