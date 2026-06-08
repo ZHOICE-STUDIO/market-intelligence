@@ -6,53 +6,63 @@
 <title>ZHOICE · Game Market Intelligence</title>
 <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
 <style>
+  @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
   :root{
-    --bg:#0d1117; --panel:#161b22; --panel-2:#1c2330; --border:#2a313c;
-    --text:#e6edf3; --muted:#8b949e; --accent:#58a6ff; --good:#3fb950;
-    --warn:#d29922; --bad:#f85149; --chip:#21262d;
+    --bg:#070b1c; --panel:#0f1535; --panel-2:#151a38; --border:rgba(255,255,255,.09);
+    --text:#ffffff; --muted:#a0aec0; --accent:#3a8bff; --accent2:#7551ff; --good:#01b574;
+    --warn:#ffb547; --bad:#ef4d56; --chip:#1a1f37;
+    --card-grad:linear-gradient(127deg, rgba(22,28,66,.92) 18%, rgba(11,15,38,.78) 82%);
+    --brand-grad:linear-gradient(97deg, #0075ff 0%, #6a00ff 100%);
   }
   *{box-sizing:border-box}
   body{
-    margin:0; background:var(--bg); color:var(--text);
-    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    margin:0; min-height:100vh; color:var(--text);
+    font-family:'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:
+      radial-gradient(1200px 620px at 6% -8%, rgba(67,24,255,.22), transparent 55%),
+      radial-gradient(1000px 600px at 100% 0%, rgba(0,117,255,.16), transparent 50%),
+      var(--bg);
+    background-attachment:fixed;
     -webkit-font-smoothing:antialiased;
   }
-  header{padding:20px 16px 8px; max-width:1200px; margin:0 auto}
-  h1{font-size:20px; margin:0 0 4px; letter-spacing:.2px}
+  header{padding:26px 16px 8px; max-width:1240px; margin:0 auto}
+  h1{font-size:24px; margin:0 0 6px; letter-spacing:.2px; font-weight:800}
   .sub{color:var(--muted); font-size:13px}
-  .wrap{max-width:1200px; margin:0 auto; padding:0 16px 60px}
+  .wrap{max-width:1240px; margin:0 auto; padding:0 16px 60px}
 
   /* filter bar */
   .filters{
-    position:sticky; top:0; z-index:10; background:rgba(13,17,23,.92);
-    backdrop-filter:blur(8px); padding:12px 16px; margin:8px 0 16px;
-    border-bottom:1px solid var(--border);
+    position:sticky; top:0; z-index:10; background:rgba(7,11,28,.72);
+    backdrop-filter:blur(14px); padding:12px 16px; margin:10px auto 18px; max-width:1240px;
+    border:1px solid var(--border); border-radius:16px;
     display:flex; flex-wrap:wrap; gap:8px; align-items:center;
   }
   .filters .group{display:flex; gap:6px; flex-wrap:wrap; align-items:center}
-  .label{color:var(--muted); font-size:12px; margin-right:2px}
+  .label{color:var(--muted); font-size:12px; margin-right:2px; text-transform:uppercase; letter-spacing:.5px}
   .chip{
     background:var(--chip); border:1px solid var(--border); color:var(--text);
-    padding:6px 12px; border-radius:999px; font-size:13px; cursor:pointer;
-    transition:.15s; user-select:none;
+    padding:6px 14px; border-radius:999px; font-size:13px; cursor:pointer;
+    transition:.18s; user-select:none;
   }
-  .chip:hover{border-color:var(--accent)}
-  .chip.active{background:var(--accent); border-color:var(--accent); color:#0d1117; font-weight:600}
+  .chip:hover{border-color:var(--accent2)}
+  .chip.active{background:var(--brand-grad); border-color:transparent; color:#fff; font-weight:600;
+    box-shadow:0 6px 16px -6px rgba(106,0,255,.8)}
   .searchbox{
     flex:1; min-width:200px; max-width:340px; margin-left:auto;
     display:flex; align-items:center; gap:8px;
-    background:var(--chip); border:1px solid var(--border); border-radius:8px; padding:0 10px;
+    background:var(--chip); border:1px solid var(--border); border-radius:12px; padding:0 12px;
   }
   .searchbox:focus-within{border-color:var(--accent)}
   .searchbox svg{flex:none; width:14px; height:14px; stroke:var(--muted)}
   input[type=search]{
     flex:1; min-width:0; background:none; border:none; color:var(--text);
-    padding:7px 0; font-size:13px;
+    padding:8px 0; font-size:13px;
   }
   input[type=search]:focus{outline:none}
+  input[type=search]::placeholder{color:var(--muted)}
   select{
     background:var(--chip); border:1px solid var(--border); color:var(--text);
-    padding:7px 12px; border-radius:8px; font-size:13px; cursor:pointer;
+    padding:7px 12px; border-radius:10px; font-size:13px; cursor:pointer;
   }
   select:focus{outline:none; border-color:var(--accent)}
   .tfilters{display:flex; flex-wrap:wrap; gap:14px; align-items:center; margin:4px 0 14px}
@@ -60,97 +70,101 @@
   .tfilters select{padding:5px 10px; font-size:12px}
   .dropdown{position:relative; display:inline-block}
   .ddbtn{background:var(--chip); border:1px solid var(--border); color:var(--text);
-    padding:5px 10px; border-radius:8px; font-size:12px; cursor:pointer}
-  .ddbtn:hover{border-color:var(--accent)}
-  .ddpanel{display:none; position:absolute; top:calc(100% + 4px); left:0; z-index:20;
-    background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:10px;
-    min-width:210px; box-shadow:0 8px 24px rgba(0,0,0,.45)}
+    padding:6px 12px; border-radius:10px; font-size:12px; cursor:pointer}
+  .ddbtn:hover{border-color:var(--accent2)}
+  .ddpanel{display:none; position:absolute; top:calc(100% + 6px); left:0; z-index:20;
+    background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:12px;
+    min-width:220px; box-shadow:0 18px 40px rgba(0,0,0,.55)}
   .ddpanel.show{display:block}
   .ddmode{display:flex; align-items:center; gap:6px; margin-bottom:8px}
   .ddmode .chip{padding:3px 10px; font-size:12px}
-  .ddsearch{display:flex; align-items:center; gap:6px; margin-bottom:8px; padding:4px 8px;
-    background:var(--chip); border:1px solid var(--border); border-radius:8px}
+  .ddsearch{display:flex; align-items:center; gap:6px; margin-bottom:8px; padding:5px 10px;
+    background:var(--chip); border:1px solid var(--border); border-radius:10px}
   .ddsearch svg{flex:none; width:13px; height:13px; stroke:var(--muted)}
   .ddsearch input{flex:1; min-width:0; background:none; border:none; color:var(--text);
     font-size:13px; outline:none}
   .ddsearch input::placeholder{color:var(--muted)}
   .ddlist label.hide{display:none}
   .ddlist{max-height:240px; overflow:auto; display:flex; flex-direction:column; gap:1px}
-  .ddlist label{display:flex; align-items:center; gap:8px; font-size:13px; padding:4px 6px;
-    border-radius:6px; cursor:pointer}
+  .ddlist label{display:flex; align-items:center; gap:8px; font-size:13px; padding:5px 7px;
+    border-radius:8px; cursor:pointer}
   .ddlist label:hover{background:var(--panel-2)}
   .ddfoot{margin-top:8px; display:flex; justify-content:flex-end}
   .verdict{font-size:11px; padding:2px 8px; border-radius:999px; white-space:nowrap}
-  .v-good{background:rgba(63,185,80,.15); color:var(--good); border:1px solid rgba(63,185,80,.35)}
-  .v-warn{background:rgba(210,153,34,.15); color:var(--warn); border:1px solid rgba(210,153,34,.35)}
-  .v-bad{background:rgba(248,81,73,.12); color:var(--bad); border:1px solid rgba(248,81,73,.3)}
+  .v-good{background:rgba(1,181,116,.15); color:var(--good); border:1px solid rgba(1,181,116,.4)}
+  .v-warn{background:rgba(255,181,71,.15); color:var(--warn); border:1px solid rgba(255,181,71,.4)}
+  .v-bad{background:rgba(239,77,86,.12); color:var(--bad); border:1px solid rgba(239,77,86,.35)}
 
   /* kpi cards */
-  .kpis{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin-bottom:18px}
-  .kpi{background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:14px 16px}
-  .kpi .v{font-size:22px; font-weight:700; letter-spacing:.3px}
-  .kpi .k{color:var(--muted); font-size:12px; margin-top:2px}
+  .kpis{display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:16px; margin-bottom:20px}
+  .kpi{background:var(--card-grad); border:1px solid var(--border); border-radius:20px; padding:18px 20px;
+    box-shadow:0 14px 34px -16px rgba(0,0,0,.6)}
+  .kpi .v{font-size:26px; font-weight:800; letter-spacing:.3px; color:#fff}
+  .kpi .k{color:var(--muted); font-size:11px; margin-top:4px; text-transform:uppercase; letter-spacing:.6px}
 
   /* panels */
-  .grid{display:grid; grid-template-columns:1fr 1fr; gap:16px}
+  .grid{display:grid; grid-template-columns:1fr 1fr; gap:18px}
   .sectionhead{grid-column:1 / -1; display:flex; align-items:baseline; gap:10px;
-    margin:18px 2px 0; padding-bottom:6px; border-bottom:1px solid var(--border)}
-  .sectionhead h3{font-size:15px; margin:0; font-weight:700; letter-spacing:.2px}
+    margin:20px 2px 2px; padding-bottom:8px; border-bottom:1px solid var(--border)}
+  .sectionhead h3{font-size:16px; margin:0; font-weight:800; letter-spacing:.2px}
   .sectionhead span{font-size:12px; color:var(--muted)}
   .sectionhead:first-child{margin-top:0}
-  .panel{background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:16px; overflow:hidden}
+  .panel{background:var(--card-grad); border:1px solid var(--border); border-radius:20px; padding:18px 20px;
+    overflow:hidden; box-shadow:0 14px 34px -16px rgba(0,0,0,.6)}
   .panel.full{grid-column:1 / -1}
-  .panel h2{font-size:14px; margin:0 0 2px; font-weight:600}
+  .panel h2{font-size:15px; margin:0 0 2px; font-weight:700}
   .panel .hint{color:var(--muted); font-size:12px; margin:0 0 12px}
   .chart{width:100%; height:340px}
   .chart.tall{height:420px}
 
   /* table */
   table{width:100%; border-collapse:collapse; font-size:13px}
-  th,td{text-align:left; padding:8px 10px; border-bottom:1px solid var(--border); white-space:nowrap}
-  th{color:var(--muted); font-weight:600; cursor:pointer; position:sticky; top:0; background:var(--panel)}
+  th,td{text-align:left; padding:9px 10px; border-bottom:1px solid var(--border); white-space:nowrap}
+  th{color:var(--muted); font-weight:600; cursor:pointer; position:sticky; top:0; background:var(--panel);
+    text-transform:uppercase; letter-spacing:.4px; font-size:11px}
   th:hover{color:var(--accent)}
   td.num,th.num{text-align:right; font-variant-numeric:tabular-nums}
-  .tag{display:inline-block; background:var(--chip); border:1px solid var(--border); border-radius:6px; padding:1px 6px; font-size:11px; color:var(--muted); margin-right:3px}
-  .tablewrap{max-height:560px; overflow:auto; border-radius:8px}
+  .tag{display:inline-block; background:var(--chip); border:1px solid var(--border); border-radius:7px; padding:1px 7px; font-size:11px; color:var(--muted); margin-right:3px}
+  .tablewrap{max-height:560px; overflow:auto; border-radius:12px}
   #table tbody tr.spacer td{padding:0; border:0}
   .gcell{display:flex; align-items:center; gap:9px}
-  .thumb{width:58px; height:27px; object-fit:cover; border-radius:4px; flex:none;
+  .thumb{width:58px; height:27px; object-fit:cover; border-radius:5px; flex:none;
     background:var(--chip); border:1px solid var(--border)}
   .pos{color:var(--good)} .neg{color:var(--bad)}
 
   .note{background:var(--panel-2); border:1px solid var(--border); border-left:3px solid var(--warn);
-        border-radius:8px; padding:10px 14px; font-size:12px; color:var(--muted); margin-bottom:16px}
+        border-radius:14px; padding:12px 16px; font-size:12px; color:var(--muted); margin-bottom:18px}
 
   /* clickable rows + modal */
   #table tbody tr{cursor:pointer}
   #table tbody tr:hover{background:var(--panel-2)}
-  .overlay{position:fixed; inset:0; background:rgba(0,0,0,.6); backdrop-filter:blur(3px);
+  .overlay{position:fixed; inset:0; background:rgba(3,5,18,.7); backdrop-filter:blur(4px);
     display:none; align-items:center; justify-content:center; z-index:50; padding:16px}
   .overlay.show{display:flex}
-  .modal{background:var(--panel); border:1px solid var(--border); border-radius:16px;
-    max-width:620px; width:100%; max-height:86vh; overflow:auto; padding:22px}
-  .modal h3{margin:0 0 2px; font-size:19px}
+  .modal{background:linear-gradient(127deg, #11173a 0%, #0b0f26 100%); border:1px solid var(--border); border-radius:22px;
+    max-width:620px; width:100%; max-height:86vh; overflow:auto; padding:24px; box-shadow:0 30px 70px rgba(0,0,0,.6)}
+  .modal h3{margin:0 0 2px; font-size:20px; font-weight:800}
   .modal .dev{color:var(--muted); font-size:13px; margin-bottom:14px}
   .modal .stats{display:grid; grid-template-columns:repeat(auto-fit,minmax(90px,1fr));
     gap:10px; margin:14px 0}
-  .modal .stat{background:var(--panel-2); border:1px solid var(--border); border-radius:10px; padding:10px}
+  .modal .stat{background:var(--panel-2); border:1px solid var(--border); border-radius:14px; padding:11px}
   .modal .stat .v{font-size:16px; font-weight:700} .modal .stat .k{color:var(--muted); font-size:11px; margin-top:2px}
   .modal .concept{font-size:14px; line-height:1.6; color:var(--text); white-space:pre-wrap;
-    background:var(--panel-2); border:1px solid var(--border); border-radius:10px; padding:14px; margin:6px 0 14px}
+    background:var(--panel-2); border:1px solid var(--border); border-radius:14px; padding:14px; margin:6px 0 14px}
   .modal .tags{margin:10px 0}
   .modal-actions{display:flex; gap:10px; align-items:center; flex-wrap:wrap}
-  .btn{background:var(--accent); color:#0d1117; font-weight:600; text-decoration:none;
-    padding:9px 16px; border-radius:8px; font-size:13px; display:inline-block}
-  .btn.ghost{background:transparent; color:var(--muted); border:1px solid var(--border)}
+  .btn{background:var(--brand-grad); color:#fff; font-weight:600; text-decoration:none;
+    padding:10px 18px; border-radius:12px; font-size:13px; display:inline-block;
+    box-shadow:0 8px 20px -8px rgba(106,0,255,.8)}
+  .btn.ghost{background:transparent; color:var(--muted); border:1px solid var(--border); box-shadow:none}
   .modal .close{float:right; cursor:pointer; color:var(--muted); font-size:22px; line-height:1; border:none; background:none}
 
   @media(max-width:760px){
     .grid{grid-template-columns:1fr}
     .chart{height:300px}
-    h1{font-size:18px}
+    h1{font-size:20px}
     .overlay{align-items:flex-end; padding:0}
-    .modal{border-radius:16px 16px 0 0; max-height:90vh}
+    .modal{border-radius:22px 22px 0 0; max-height:90vh}
   }
 </style>
 </head>
@@ -162,11 +176,6 @@
 </header>
 
 <div class="filters">
-  <div class="group">
-    <span class="label">Segment</span>
-    <span class="chip active" data-seg="all">All games</span>
-    <span class="chip" data-seg="indie">Indie only</span>
-  </div>
   <div class="group">
     <span class="label">Price</span>
     <span class="chip active" data-price="all">All</span>
@@ -342,7 +351,7 @@ const DATA = (window.DASHBOARD_DATA || {games:[], notes:{}});
 const ALL = DATA.games || [];
 
 // ---- state ----
-const state = {seg:'all', price:'all', search:'', sortKey:'rev', sortDir:-1,
+const state = {price:'all', search:'', sortKey:'rev', sortDir:-1,
   tGenres:[], tGenreMode:'any', tScoreMin:0, tReviewsMin:0, tYearFrom:'', tYearTo:''};
 let currentRows = [];  // games currently shown in the table (for the detail modal)
 
@@ -367,7 +376,6 @@ function priceMatch(g){
 function filtered(){
   const q = state.search.trim().toLowerCase();
   return ALL.filter(g=>{
-    if(state.seg==='indie' && !g.indie) return false;
     if(!priceMatch(g)) return false;
     if(q){
       const hay = (g.name+' '+(g.developer||'')).toLowerCase();
@@ -419,8 +427,8 @@ function yearAgg(games){
 }
 
 // ---- charts ----
-const AX=()=>({axisLine:{lineStyle:{color:'#2a313c'}},axisLabel:{color:'#8b949e'},splitLine:{lineStyle:{color:'#1c2330'}}});
-const SHARE_COLORS=['#58a6ff','#3fb950','#bc8cff','#d29922','#f85149','#39c5cf','#db61a2',
+const AX=()=>({axisLine:{lineStyle:{color:'#2b3160'}},axisLabel:{color:'#a0aec0'},splitLine:{lineStyle:{color:'#1a1f37'}}});
+const SHARE_COLORS=['#3a8bff','#01b574','#7551ff','#ffb547','#ef4d56','#39c5cf','#db61a2',
   '#a371f7','#e3b341','#7ee787','#79c0ff','#ffa657','#ff7b72','#56d364'];
 let cMatrix,cGenre,cTheme,cYear,cShare;
 function initCharts(){
@@ -437,17 +445,17 @@ function renderMatrix(ga){
   const mx=median(xs), my=median(ys), maxT=Math.max(...ga.map(d=>d.total),1);
   cMatrix.setOption({
     grid:{left:60,right:24,top:20,bottom:50},
-    tooltip:{trigger:'item',backgroundColor:'#161b22',borderColor:'#2a313c',textStyle:{color:'#e6edf3'},
+    tooltip:{trigger:'item',backgroundColor:'#0f1535',borderColor:'#2b3160',textStyle:{color:'#e9edf7'},
       formatter:p=>{const d=p.data.d; return `<b>${d.name}</b><br>Games: ${d.games}<br>Median rev: ${fmtMoney(d.medRev)}<br>Total: ${fmtMoney(d.total)}<br>Avg score: ${d.avgScore?d.avgScore+'%':'–'}`;}},
-    xAxis:{name:'# games (competition →)',nameLocation:'middle',nameGap:30,nameTextStyle:{color:'#8b949e'},...AX()},
-    yAxis:{name:'median est. revenue →',nameLocation:'middle',nameGap:46,nameTextStyle:{color:'#8b949e'},
-      axisLabel:{color:'#8b949e',formatter:v=>fmtMoney(v)},axisLine:{lineStyle:{color:'#2a313c'}},splitLine:{lineStyle:{color:'#1c2330'}}},
+    xAxis:{name:'# games (competition →)',nameLocation:'middle',nameGap:30,nameTextStyle:{color:'#a0aec0'},...AX()},
+    yAxis:{name:'median est. revenue →',nameLocation:'middle',nameGap:46,nameTextStyle:{color:'#a0aec0'},
+      axisLabel:{color:'#a0aec0',formatter:v=>fmtMoney(v)},axisLine:{lineStyle:{color:'#2b3160'}},splitLine:{lineStyle:{color:'#1a1f37'}}},
     series:[{
       type:'scatter',
       symbolSize:(val,params)=>8+38*Math.sqrt(params.data.d.total/maxT),
-      itemStyle:{color:p=>{const d=p.data.d; return (d.games<=mx && d.medRev>=my)?'#3fb950':'#58a6ff';},opacity:.8,borderColor:'#0d1117'},
-      label:{show:true,formatter:p=>p.data.d.name,position:'top',color:'#8b949e',fontSize:10},
-      markLine:{silent:true,symbol:'none',lineStyle:{color:'#3a414d',type:'dashed'},
+      itemStyle:{color:p=>{const d=p.data.d; return (d.games<=mx && d.medRev>=my)?'#01b574':'#3a8bff';},opacity:.8,borderColor:'#070b1c'},
+      label:{show:true,formatter:p=>p.data.d.name,position:'top',color:'#a0aec0',fontSize:10},
+      markLine:{silent:true,symbol:'none',lineStyle:{color:'#3a3f5e',type:'dashed'},
         data:[{xAxis:mx},{yAxis:my}]},
       data:ga.map(d=>({value:[d.games,d.medRev],d}))
     }]
@@ -466,17 +474,17 @@ function renderShare(ga){
   cShare.setOption({
     color:SHARE_COLORS,
     title:{text:fmtMoney(total),subtext:'total est. revenue',left:'33%',top:'43%',textAlign:'center',
-      textStyle:{color:'#e6edf3',fontSize:20,fontWeight:700},subtextStyle:{color:'#8b949e',fontSize:11}},
-    tooltip:{trigger:'item',backgroundColor:'#161b22',borderColor:'#2a313c',textStyle:{color:'#e6edf3'},
+      textStyle:{color:'#e9edf7',fontSize:20,fontWeight:700},subtextStyle:{color:'#a0aec0',fontSize:11}},
+    tooltip:{trigger:'item',backgroundColor:'#0f1535',borderColor:'#2b3160',textStyle:{color:'#e9edf7'},
       formatter:p=>`<b>${p.name}</b><br>${fmtMoney(p.value)} · ${p.percent}%`},
-    legend:{type:'scroll',orient:'vertical',right:8,top:'middle',textStyle:{color:'#8b949e'},
-      pageTextStyle:{color:'#8b949e'},pageIconColor:'#8b949e',pageIconInactiveColor:'#3a414d'},
+    legend:{type:'scroll',orient:'vertical',right:8,top:'middle',textStyle:{color:'#a0aec0'},
+      pageTextStyle:{color:'#a0aec0'},pageIconColor:'#a0aec0',pageIconInactiveColor:'#3a3f5e'},
     series:[{
       type:'pie', radius:['44%','72%'], center:['33%','50%'], avoidLabelOverlap:true,
-      itemStyle:{borderColor:'#0d1117',borderWidth:2},
-      label:{color:'#e6edf3',fontSize:11,
+      itemStyle:{borderColor:'#070b1c',borderWidth:2},
+      label:{color:'#e9edf7',fontSize:11,
         formatter:p=>p.percent>=4?`${p.name}\n${fmtMoney(p.value)} · ${p.percent}%`:''},
-      labelLine:{lineStyle:{color:'#3a414d'},length:8,length2:8},
+      labelLine:{lineStyle:{color:'#3a3f5e'},length:8,length2:8},
       emphasis:{label:{show:true,fontWeight:700},
         itemStyle:{shadowBlur:12,shadowColor:'rgba(0,0,0,.5)'}},
       data
@@ -487,32 +495,32 @@ function renderGenreBar(ga){
   const top=[...ga].sort((a,b)=>b.games-a.games).slice(0,14).reverse();
   cGenre.setOption({
     grid:{left:8,right:40,top:10,bottom:24,containLabel:true},
-    tooltip:{trigger:'axis',axisPointer:{type:'shadow'},backgroundColor:'#161b22',borderColor:'#2a313c',textStyle:{color:'#e6edf3'},
+    tooltip:{trigger:'axis',axisPointer:{type:'shadow'},backgroundColor:'#0f1535',borderColor:'#2b3160',textStyle:{color:'#e9edf7'},
       formatter:p=>{const d=top[p[0].dataIndex]; return `<b>${d.name}</b><br>${d.games} games<br>Avg score ${d.avgScore?d.avgScore+'%':'–'}`;}},
     xAxis:{type:'value',...AX()},
-    yAxis:{type:'category',data:top.map(d=>d.name),axisLabel:{color:'#e6edf3',fontSize:11},axisLine:{lineStyle:{color:'#2a313c'}}},
-    series:[{type:'bar',data:top.map(d=>d.games),itemStyle:{color:'#58a6ff',borderRadius:[0,4,4,0]},barWidth:'62%'}]
+    yAxis:{type:'category',data:top.map(d=>d.name),axisLabel:{color:'#e9edf7',fontSize:11},axisLine:{lineStyle:{color:'#2b3160'}}},
+    series:[{type:'bar',data:top.map(d=>d.games),itemStyle:{color:'#3a8bff',borderRadius:[0,4,4,0]},barWidth:'62%'}]
   });
 }
 function renderThemeBar(ta){
   const top=[...ta].reverse();
   cTheme.setOption({
     grid:{left:8,right:40,top:10,bottom:24,containLabel:true},
-    tooltip:{trigger:'axis',axisPointer:{type:'shadow'},backgroundColor:'#161b22',borderColor:'#2a313c',textStyle:{color:'#e6edf3'}},
+    tooltip:{trigger:'axis',axisPointer:{type:'shadow'},backgroundColor:'#0f1535',borderColor:'#2b3160',textStyle:{color:'#e9edf7'}},
     xAxis:{type:'value',...AX()},
-    yAxis:{type:'category',data:top.map(d=>d.name),axisLabel:{color:'#e6edf3',fontSize:11},axisLine:{lineStyle:{color:'#2a313c'}}},
-    series:[{type:'bar',data:top.map(d=>d.games),itemStyle:{color:'#bc8cff',borderRadius:[0,4,4,0]},barWidth:'62%'}]
+    yAxis:{type:'category',data:top.map(d=>d.name),axisLabel:{color:'#e9edf7',fontSize:11},axisLine:{lineStyle:{color:'#2b3160'}}},
+    series:[{type:'bar',data:top.map(d=>d.games),itemStyle:{color:'#7551ff',borderRadius:[0,4,4,0]},barWidth:'62%'}]
   });
 }
 function renderYear(ya){
   cYear.setOption({
     grid:{left:40,right:24,top:16,bottom:30},
-    tooltip:{trigger:'axis',backgroundColor:'#161b22',borderColor:'#2a313c',textStyle:{color:'#e6edf3'}},
+    tooltip:{trigger:'axis',backgroundColor:'#0f1535',borderColor:'#2b3160',textStyle:{color:'#e9edf7'}},
     xAxis:{type:'category',data:ya.map(d=>d.year),...AX()},
     yAxis:{type:'value',...AX()},
     series:[{type:'line',smooth:true,data:ya.map(d=>d.games),symbolSize:6,
-      lineStyle:{color:'#3fb950',width:2},itemStyle:{color:'#3fb950'},
-      areaStyle:{color:new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'rgba(63,185,80,.35)'},{offset:1,color:'rgba(63,185,80,0)'}])}}]
+      lineStyle:{color:'#01b574',width:2},itemStyle:{color:'#01b574'},
+      areaStyle:{color:new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'rgba(1,181,116,.35)'},{offset:1,color:'rgba(1,181,116,0)'}])}}]
   });
 }
 
@@ -536,24 +544,24 @@ function renderMomentum(){
   cMomo = cMomo || echarts.init(document.getElementById('momoBar'));
   cMomo.setOption({
     grid:{left:8,right:60,top:10,bottom:24,containLabel:true},
-    tooltip:{trigger:'axis',axisPointer:{type:'shadow'},backgroundColor:'#161b22',borderColor:'#2a313c',textStyle:{color:'#e6edf3'},
+    tooltip:{trigger:'axis',axisPointer:{type:'shadow'},backgroundColor:'#0f1535',borderColor:'#2b3160',textStyle:{color:'#e9edf7'},
       formatter:p=>{const d=pick[p[0].dataIndex]; return `<b>${d.name}</b><br>${d.change_pct>0?'+':''}${d.change_pct}% review volume<br>recent ${fmtNum(d.recent)} vs prior ${fmtNum(d.prior)}`;}},
-    xAxis:{type:'value',axisLabel:{color:'#8b949e',formatter:v=>v+'%'},axisLine:{lineStyle:{color:'#2a313c'}},splitLine:{lineStyle:{color:'#1c2330'}}},
-    yAxis:{type:'category',data:pick.map(d=>d.name),axisLabel:{color:'#e6edf3',fontSize:11},axisLine:{lineStyle:{color:'#2a313c'}}},
-    series:[{type:'bar',data:pick.map(d=>({value:d.change_pct,itemStyle:{color:d.change_pct>=0?'#3fb950':'#f85149',borderRadius:[0,4,4,0]}})),
-      label:{show:true,position:'right',color:'#8b949e',fontSize:10,formatter:p=>(p.value>0?'+':'')+p.value+'%'},barWidth:'62%'}]
+    xAxis:{type:'value',axisLabel:{color:'#a0aec0',formatter:v=>v+'%'},axisLine:{lineStyle:{color:'#2b3160'}},splitLine:{lineStyle:{color:'#1a1f37'}}},
+    yAxis:{type:'category',data:pick.map(d=>d.name),axisLabel:{color:'#e9edf7',fontSize:11},axisLine:{lineStyle:{color:'#2b3160'}}},
+    series:[{type:'bar',data:pick.map(d=>({value:d.change_pct,itemStyle:{color:d.change_pct>=0?'#01b574':'#ef4d56',borderRadius:[0,4,4,0]}})),
+      label:{show:true,position:'right',color:'#a0aec0',fontSize:10,formatter:p=>(p.value>0?'+':'')+p.value+'%'},barWidth:'62%'}]
   });
 
   cMarket = cMarket || echarts.init(document.getElementById('marketLine'));
   cMarket.setOption({
     grid:{left:50,right:24,top:16,bottom:30},
-    tooltip:{trigger:'axis',backgroundColor:'#161b22',borderColor:'#2a313c',textStyle:{color:'#e6edf3'},
+    tooltip:{trigger:'axis',backgroundColor:'#0f1535',borderColor:'#2b3160',textStyle:{color:'#e9edf7'},
       formatter:p=>`${p[0].axisValue}<br>${fmtNum(p[0].value)} reviews`},
-    xAxis:{type:'category',data:mo.market.map(d=>d.month.slice(0,7)),axisLabel:{color:'#8b949e'},axisLine:{lineStyle:{color:'#2a313c'}}},
-    yAxis:{type:'value',axisLabel:{color:'#8b949e',formatter:v=>fmtNum(v)},axisLine:{lineStyle:{color:'#2a313c'}},splitLine:{lineStyle:{color:'#1c2330'}}},
+    xAxis:{type:'category',data:mo.market.map(d=>d.month.slice(0,7)),axisLabel:{color:'#a0aec0'},axisLine:{lineStyle:{color:'#2b3160'}}},
+    yAxis:{type:'value',axisLabel:{color:'#a0aec0',formatter:v=>fmtNum(v)},axisLine:{lineStyle:{color:'#2b3160'}},splitLine:{lineStyle:{color:'#1a1f37'}}},
     series:[{type:'line',smooth:true,data:mo.market.map(d=>d.reviews),symbolSize:5,
-      lineStyle:{color:'#58a6ff',width:2},itemStyle:{color:'#58a6ff'},
-      areaStyle:{color:new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'rgba(88,166,255,.30)'},{offset:1,color:'rgba(88,166,255,0)'}])}}]
+      lineStyle:{color:'#3a8bff',width:2},itemStyle:{color:'#3a8bff'},
+      areaStyle:{color:new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'rgba(58,139,255,.30)'},{offset:1,color:'rgba(58,139,255,0)'}])}}]
   });
 }
 
@@ -602,21 +610,21 @@ function drawForecastLine(g){
   const delta    =g.months.map((_,i)=> i===nH-1? 0    : null).concat(g.upper.map((u,i)=>u-g.lower[i]));
   cForecast.setOption({
     grid:{left:56,right:24,top:30,bottom:40},
-    legend:{data:['History','Forecast'],textStyle:{color:'#8b949e'},top:0,right:8},
-    tooltip:{trigger:'axis',backgroundColor:'#161b22',borderColor:'#2a313c',textStyle:{color:'#e6edf3'},
+    legend:{data:['History','Forecast'],textStyle:{color:'#a0aec0'},top:0,right:8},
+    tooltip:{trigger:'axis',backgroundColor:'#0f1535',borderColor:'#2b3160',textStyle:{color:'#e9edf7'},
       formatter:p=>{const i=p[0].dataIndex,fut=i>=nH; const v=p.find(s=>s.seriesName==='History'&&s.value!=null)||p.find(s=>s.seriesName==='Forecast'&&s.value!=null);
         return `${xAll[i]}${fut?' · projected':''}<br>${v?fmtNum(v.value):'–'} reviews/mo`;}},
-    xAxis:{type:'category',data:xAll,boundaryGap:false,axisLabel:{color:'#8b949e',fontSize:10},axisLine:{lineStyle:{color:'#2a313c'}}},
-    yAxis:{type:'value',axisLabel:{color:'#8b949e',formatter:v=>fmtNum(v)},axisLine:{lineStyle:{color:'#2a313c'}},splitLine:{lineStyle:{color:'#1c2330'}}},
+    xAxis:{type:'category',data:xAll,boundaryGap:false,axisLabel:{color:'#a0aec0',fontSize:10},axisLine:{lineStyle:{color:'#2b3160'}}},
+    yAxis:{type:'value',axisLabel:{color:'#a0aec0',formatter:v=>fmtNum(v)},axisLine:{lineStyle:{color:'#2b3160'}},splitLine:{lineStyle:{color:'#1a1f37'}}},
     series:[
       {name:'band-l',type:'line',data:lowerBase,stack:'band',symbol:'none',lineStyle:{opacity:0},areaStyle:{opacity:0},silent:true},
       {name:'band-u',type:'line',data:delta,stack:'band',symbol:'none',lineStyle:{opacity:0},
-        areaStyle:{color:'rgba(210,153,34,.16)'},silent:true},
+        areaStyle:{color:'rgba(255,181,71,.16)'},silent:true},
       {name:'History',type:'line',data:histSeries,smooth:true,symbolSize:4,connectNulls:false,
-        lineStyle:{color:'#58a6ff',width:2.5},itemStyle:{color:'#58a6ff'},
-        areaStyle:{color:new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'rgba(88,166,255,.25)'},{offset:1,color:'rgba(88,166,255,0)'}])}},
+        lineStyle:{color:'#3a8bff',width:2.5},itemStyle:{color:'#3a8bff'},
+        areaStyle:{color:new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'rgba(58,139,255,.25)'},{offset:1,color:'rgba(58,139,255,0)'}])}},
       {name:'Forecast',type:'line',data:fcSeries,smooth:true,symbolSize:4,connectNulls:false,
-        lineStyle:{color:'#d29922',width:2.5,type:'dashed'},itemStyle:{color:'#d29922'}},
+        lineStyle:{color:'#ffb547',width:2.5,type:'dashed'},itemStyle:{color:'#ffb547'}},
     ]
   });
 }
@@ -734,8 +742,6 @@ function render(){
 }
 
 // ---- events ----
-document.querySelectorAll('.chip[data-seg]').forEach(c=>c.onclick=()=>{
-  state.seg=c.dataset.seg; setActive('data-seg',c); render();});
 document.querySelectorAll('.chip[data-price]').forEach(c=>c.onclick=()=>{
   state.price=c.dataset.price; setActive('data-price',c); render();});
 function setActive(attr,el){el.parentNode.querySelectorAll(`.chip[${attr}]`).forEach(x=>x.classList.remove('active')); el.classList.add('active');}
