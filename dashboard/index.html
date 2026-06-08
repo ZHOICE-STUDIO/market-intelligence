@@ -182,6 +182,12 @@
 
   <div class="grid">
     <div class="panel full">
+      <h2>🥧 Market share by genre — est. revenue split</h2>
+      <p class="hint">Each slice = a genre's share of total estimated revenue, shown as <b>%</b> and <b>$</b>. Genres are multi-label (a game counts in each of its genres), so slices overlap and won't sum to the universe total — read it as relative weight. Reflects the current Segment/Price/Search filters.</p>
+      <div id="shareChart" class="chart tall"></div>
+    </div>
+
+    <div class="panel full">
       <h2>🎯 Opportunity Matrix — where's the gap?</h2>
       <p class="hint">Each bubble = a genre. <b>Right</b> = crowded (many games). <b>Up</b> = higher median est. revenue. Bubble size = total market. <span style="color:var(--good)">Top-left = high reward, low competition = opportunity.</span></p>
       <div id="matrix" class="chart tall"></div>
@@ -402,13 +408,16 @@ function yearAgg(games){
 
 // ---- charts ----
 const AX=()=>({axisLine:{lineStyle:{color:'#2a313c'}},axisLabel:{color:'#8b949e'},splitLine:{lineStyle:{color:'#1c2330'}}});
-let cMatrix,cGenre,cTheme,cYear;
+const SHARE_COLORS=['#58a6ff','#3fb950','#bc8cff','#d29922','#f85149','#39c5cf','#db61a2',
+  '#a371f7','#e3b341','#7ee787','#79c0ff','#ffa657','#ff7b72','#56d364'];
+let cMatrix,cGenre,cTheme,cYear,cShare;
 function initCharts(){
   cMatrix=echarts.init(document.getElementById('matrix'));
+  cShare=echarts.init(document.getElementById('shareChart'));
   cGenre=echarts.init(document.getElementById('genreBar'));
   cTheme=echarts.init(document.getElementById('themeBar'));
   cYear=echarts.init(document.getElementById('yearLine'));
-  window.addEventListener('resize',()=>{[cMatrix,cGenre,cTheme,cYear,cMomo,cMarket,cForecast].forEach(c=>c&&c.resize());});
+  window.addEventListener('resize',()=>{[cMatrix,cShare,cGenre,cTheme,cYear,cMomo,cMarket,cForecast].forEach(c=>c&&c.resize());});
 }
 
 function renderMatrix(ga){
@@ -429,6 +438,36 @@ function renderMatrix(ga){
       markLine:{silent:true,symbol:'none',lineStyle:{color:'#3a414d',type:'dashed'},
         data:[{xAxis:mx},{yAxis:my}]},
       data:ga.map(d=>({value:[d.games,d.medRev],d}))
+    }]
+  });
+}
+function renderShare(ga){
+  const sorted=[...ga].sort((a,b)=>b.total-a.total);
+  const TOP=12;
+  const data=sorted.slice(0,TOP).map(d=>({name:d.name,value:d.total}));
+  const rest=sorted.slice(TOP);
+  if(rest.length){
+    const o=rest.reduce((s,d)=>s+d.total,0);
+    if(o>0) data.push({name:`Others (${rest.length})`,value:o});
+  }
+  const total=data.reduce((s,d)=>s+d.value,0);
+  cShare.setOption({
+    color:SHARE_COLORS,
+    title:{text:fmtMoney(total),subtext:'total est. revenue',left:'33%',top:'43%',textAlign:'center',
+      textStyle:{color:'#e6edf3',fontSize:20,fontWeight:700},subtextStyle:{color:'#8b949e',fontSize:11}},
+    tooltip:{trigger:'item',backgroundColor:'#161b22',borderColor:'#2a313c',textStyle:{color:'#e6edf3'},
+      formatter:p=>`<b>${p.name}</b><br>${fmtMoney(p.value)} · ${p.percent}%`},
+    legend:{type:'scroll',orient:'vertical',right:8,top:'middle',textStyle:{color:'#8b949e'},
+      pageTextStyle:{color:'#8b949e'},pageIconColor:'#8b949e',pageIconInactiveColor:'#3a414d'},
+    series:[{
+      type:'pie', radius:['44%','72%'], center:['33%','50%'], avoidLabelOverlap:true,
+      itemStyle:{borderColor:'#0d1117',borderWidth:2},
+      label:{color:'#e6edf3',fontSize:11,
+        formatter:p=>p.percent>=4?`${p.name}\n${fmtMoney(p.value)} · ${p.percent}%`:''},
+      labelLine:{lineStyle:{color:'#3a414d'},length:8,length2:8},
+      emphasis:{label:{show:true,fontWeight:700},
+        itemStyle:{shadowBlur:12,shadowColor:'rgba(0,0,0,.5)'}},
+      data
     }]
   });
 }
@@ -678,7 +717,7 @@ function render(){
   const games=filtered();
   const ga=genreAgg(games), ta=themeAgg(games), ya=yearAgg(games);
   renderKpis(games);
-  renderMatrix(ga); renderGenreBar(ga); renderThemeBar(ta); renderYear(ya);
+  renderShare(ga); renderMatrix(ga); renderGenreBar(ga); renderThemeBar(ta); renderYear(ya);
   renderTable(tableFilter(games));
 }
 
