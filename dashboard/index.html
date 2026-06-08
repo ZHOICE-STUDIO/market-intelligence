@@ -93,6 +93,11 @@
 
   /* panels */
   .grid{display:grid; grid-template-columns:1fr 1fr; gap:16px}
+  .sectionhead{grid-column:1 / -1; display:flex; align-items:baseline; gap:10px;
+    margin:18px 2px 0; padding-bottom:6px; border-bottom:1px solid var(--border)}
+  .sectionhead h3{font-size:15px; margin:0; font-weight:700; letter-spacing:.2px}
+  .sectionhead span{font-size:12px; color:var(--muted)}
+  .sectionhead:first-child{margin-top:0}
   .panel{background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:16px; overflow:hidden}
   .panel.full{grid-column:1 / -1}
   .panel h2{font-size:14px; margin:0 0 2px; font-weight:600}
@@ -153,13 +158,14 @@
 <header>
   <h1>🎮 ZHOICE · Game Market Intelligence</h1>
   <div class="sub" id="subtitle">Loading…</div>
+  <div class="sub">Explore the whole catalog by genre &amp; theme — indie is just one optional filter.</div>
 </header>
 
 <div class="filters">
   <div class="group">
     <span class="label">Segment</span>
-    <span class="chip" data-seg="all">All games</span>
-    <span class="chip active" data-seg="indie">Indie only</span>
+    <span class="chip active" data-seg="all">All games</span>
+    <span class="chip" data-seg="indie">Indie only</span>
   </div>
   <div class="group">
     <span class="label">Price</span>
@@ -181,11 +187,27 @@
   <div class="kpis" id="kpis"></div>
 
   <div class="grid">
+    <div class="sectionhead"><h3>🧩 Market composition</h3><span>what the catalog is made of, by genre &amp; theme</span></div>
+
     <div class="panel full">
       <h2>🥧 Market share by genre — est. revenue split</h2>
       <p class="hint">Each slice = a genre's share of total estimated revenue, shown as <b>%</b> and <b>$</b>. Genres are multi-label (a game counts in each of its genres), so slices overlap and won't sum to the universe total — read it as relative weight. Reflects the current Segment/Price/Search filters.</p>
       <div id="shareChart" class="chart tall"></div>
     </div>
+
+    <div class="panel">
+      <h2>Genres by game count</h2>
+      <p class="hint">How crowded each genre is (supply).</p>
+      <div id="genreBar" class="chart"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Themes / sub-genres</h2>
+      <p class="hint">Where micro-trends live (e.g. Survival, Horror).</p>
+      <div id="themeBar" class="chart"></div>
+    </div>
+
+    <div class="sectionhead"><h3>🎯 Opportunity &amp; trends</h3><span>where the gaps are and which waves are rising</span></div>
 
     <div class="panel full">
       <h2>🎯 Opportunity Matrix — where's the gap?</h2>
@@ -234,23 +256,13 @@
       <div id="marketLine" class="chart"></div>
     </div>
 
-    <div class="panel">
-      <h2>Genres by game count</h2>
-      <p class="hint">How crowded each genre is (supply).</p>
-      <div id="genreBar" class="chart"></div>
-    </div>
-
-    <div class="panel">
-      <h2>Themes / sub-genres</h2>
-      <p class="hint">Where micro-trends live (e.g. Survival, Horror).</p>
-      <div id="themeBar" class="chart"></div>
-    </div>
-
     <div class="panel full">
       <h2>Releases per year <span style="color:var(--warn)">⚠ biased</span></h2>
       <p class="hint">Counts within this top-games universe — older games had more time to climb, so recent years look smaller than reality.</p>
       <div id="yearLine" class="chart"></div>
     </div>
+
+    <div class="sectionhead"><h3>📋 Browse the catalog</h3><span>filter by genre / theme, price, score and more</span></div>
 
     <div class="panel full">
       <h2>Games <span id="tableCount" class="hint"></span></h2>
@@ -330,7 +342,7 @@ const DATA = (window.DASHBOARD_DATA || {games:[], notes:{}});
 const ALL = DATA.games || [];
 
 // ---- state ----
-const state = {seg:'indie', price:'all', search:'', sortKey:'rev', sortDir:-1,
+const state = {seg:'all', price:'all', search:'', sortKey:'rev', sortDir:-1,
   tGenres:[], tGenreMode:'any', tScoreMin:0, tReviewsMin:0, tYearFrom:'', tYearTo:''};
 let currentRows = [];  // games currently shown in the table (for the detail modal)
 
@@ -614,7 +626,7 @@ function renderKpis(games){
   const priced=games.map(g=>g.price).filter(p=>p);
   const k=[
     ['Games', fmtNum(games.length)],
-    ['Indie share', games.length? Math.round(100*games.filter(g=>g.indie).length/games.length)+'%':'–'],
+    ['Genres covered', String(new Set(games.flatMap(g=>g.genres||[])).size)],
     ['Median price', priced.length? '$'+median(priced).toFixed(2):'–'],
     ['Median reviews', fmtNum(Math.round(median(games.map(g=>g.reviews))))],
     ['Total est. revenue', fmtMoney(games.reduce((s,g)=>s+g.rev,0))],
